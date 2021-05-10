@@ -5,7 +5,7 @@
 [general]
 name=WellMatch
 qgisMinimumVersion=3.0
-version=0.9.1
+version=0.9.11
 author=Dominik Szrek / PIG-PIB
 email=dszr@pgi.gov.pl
 description=Wyszukiwanie tożsamych otworów geologicznych w dwóch odrębnych bazach danych.
@@ -24,7 +24,12 @@ repository=https://github.com/dszrek/WellMatch.git
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=[0.9.1] - 2021-05-10
+changelog=[0.9.11] - 2021-05-10 (hotfix 1)
+
+  * Poprawiono:
+ - Parametr N uzyskuje wartość 0.0, jeśli w otworze A lub B brak jest nazwy (pusta wartość w nazwie otworu powodowała błąd analizy wstępnej).
+
+  [0.9.1] - 2021-05-10
 
   * Zmieniono:
  - Fazę 3 analizy wstępnej oparto na wartościach pojedynczych parametrów, zamiast na kombinacjach uśrednionych wartości par parametrów.
