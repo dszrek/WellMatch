@@ -1,0 +1,51 @@
+# This file contains metadata for your plugin.
+
+# This file should be included when you package your plugin.# Mandatory items:
+
+[general]
+name=WellMatch
+qgisMinimumVersion=3.0
+version=0.9
+author=Dominik Szrek / PIG-PIB
+email=dszr@pgi.gov.pl
+description=Wyszukiwanie tożsamych otworów geologicznych w dwóch odrębnych bazach danych.
+about=Wtyczka umożliwia wyszukanie tożsamych otworów geologicznych w obrębie dwóch odrębnych baz danych. Identyfikacja otworów następuje po nazwie, współrzędnych XYZ, głębokości oraz roku zakończenia wiercenia. Dzięki zastosowanym algorytmom dopasowywania (m.in. fuzzy matching) i klasyfikacji opartej o algorytm uczenia maszynowego (RandomForestClassifier) wartości tych samych atrybutów w obu bazach mogą się różnić – wtyczka zaproponuje najbardziej prawdopodobne dopasowania. Dodatkowo, wtyczka oferuje szereg narzędzi do analizy uzyskanych wyników parowania otworów.
+  
+  Koncepcja i testowanie: Zbigniew Małolepszy
+  Opracowano w ramach zadania państwowej służby geologicznej nr 22.5505.1901.01.1
+  Nadzorujący: Ministerstwo Środowiska
+  Finasowanie: Narodowy Fundusz Ochrony Środowiska i Gospodarki Wodnej
+
+tracker=https://github.com/dszrek/WellMatch/issues
+repository=https://github.com/dszrek/WellMatch.git
+# End of mandatory metadata
+
+# Recommended items:
+
+hasProcessingProvider=no
+# Uncomment the following line and add your changelog:
+# changelog=
+
+# Tags are comma separated with spaces allowed
+tags=python
+
+homepage=https://github.com/dszrek/WellMatch
+category=Plugins
+icon=icon.png
+# experimental flag
+experimental=False
+
+# deprecated flag (applies to the whole plugin, not just a single version)
+deprecated=False
+
+# Since QGIS 3.8, a comma separated list of plugins to be installed
+# (or upgraded) can be specified.
+# Check the documentation for more information.
+# plugin_dependencies=
+
+Category of the plugin: Raster, Vector, Database or Web
+# category=
+
+# If the plugin can run on QGIS Server.
+server=False
+

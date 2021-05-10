@@ -1,0 +1,12 @@
+__pycache__/
+.mypy_cache/
+.vscode/
+help/
+scripts/
+test/
+pyqgis.cmd
+pylintrc
+bin.py
+MakeFile
+pb_tool.cfg
+plugin_upload.py
