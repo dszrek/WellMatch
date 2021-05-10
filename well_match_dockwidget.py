@@ -972,7 +972,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def rank_n(self, tdf):
         """Ranking nazw (fuzzy matching)."""
-        return fuzz.token_sort_ratio(self.a_n, tdf) / 100
+        if not self.a_n or not tdf:
+            return 0.0
+        return fuzz.token_sort_ratio(str(self.a_n), str(tdf)) / 100
 
     def r_dist(self, idx, rev):
         """Obliczenie odległości od parametru ROK między punktem z bazy A a punktami z bazy B (lub B do A, jeśli rev = True)."""
