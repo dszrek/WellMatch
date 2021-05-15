@@ -5,7 +5,7 @@ import numpy as np
 
 from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox
 from PyQt5.QtCore import QDir, QVariant
-from qgis.core import QgsProject, QgsApplication, QgsVectorLayer, QgsRasterLayer, QgsRectangle, QgsGeometry, QgsWkbTypes, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsPointXY, QgsField
+from qgis.core import QgsProject, QgsApplication, QgsVectorLayer, QgsRasterLayer, QgsRectangle, QgsGeometry, QgsWkbTypes, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsPointXY, QgsField, QgsLayerTreeGroup, QgsLayerTreeLayer
 from qgis.utils import iface
 
 from .import_data_dialog import ImportDataDialog
@@ -13,6 +13,7 @@ from .classes import DataFrameModel
 
 PATH_PRJ = None
 STYLE_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'styles' + os.path.sep
+CRS_1992 = QgsCoordinateReferenceSystem(2180)
 dlg = None
 adf = None
 
@@ -21,36 +22,12 @@ def dlg_main(_dlg):
     global dlg
     dlg = _dlg
     init()
-    create_qgis_project()
-    create_layers()
 
 def init():
     dlg.btn_new_prj.pressed.connect(new_project)
     dlg.btn_open_prj.pressed.connect(open_project)
     dlg.btn_adf.pressed.connect(import_adf)
     dlg.btn_bdf.pressed.connect(import_bdf)
-
-
-def create_qgis_project():
-    """Utworzenie nowego projektu QGIS."""
-    iface.newProject(False)
-    crs_1992 = QgsCoordinateReferenceSystem(2180)
-    qprj = QgsProject.instance()
-    # qprj.setCrs(crs_1992)
-    # canvas.setExtent(init_extent())
-    try:
-        bmap = get_google_layer()
-        bmap.renderer().setOpacity(0.75)
-    except:
-        bmap = None
-    if bmap:
-        qprj.addMapLayer(bmap)
-    else:
-        print("Błąd przy załadowaniu WMS!")
-    QgsApplication.processEvents()
-    qprj.setCrs(crs_1992)
-    canvas = iface.mapCanvas()
-    canvas.setExtent(init_extent())
 
 def init_extent():
     xmin = 170000
@@ -59,113 +36,231 @@ def init_extent():
     ymax = 800000
     return QgsRectangle(xmin, ymin, xmax, ymax)
 
-def get_google_layer():
-    google_uri = "type=xyz&url=https://mt1.google.com/vt/lyrs%3Dm%26hl%3Dpl%26x%3D%7Bx%7D%26y%3D%7By%7D%26z%3D%7Bz%7D&zmax=18&zmin=0&crs=EPSG2180"
-    return QgsRasterLayer(google_uri, 'Google', 'wms')
 
-def get_osm_layer():
-    google_uri = 'type=xyz&url=https://a.tile.openstreetmap.org/%7Bz%7D/%7Bx%7D/%7By%7D.png&zmax=19&zmin=0&crs=EPSG2180'
-    return QgsRasterLayer(google_uri, 'OSM', 'wms')
+class LayerManager:
+    """Menedżer warstw projektu."""
+    def __init__(self, dlg):
+        self.root = dlg.proj.layerTreeRoot()
+        self.groups_tree = [
+            {'name': 'WellMatch', 'level': 1, 'layers': ['A_1', 'A_2', 'B_1', 'B_2', 'C', 'A1B1', 'A1B2', 'A2B1', 'B_INNE']}
+            ]
+        self.lyrs = [
+            {"source": "memory", "name": "A_1", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:integer", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "a1.qml"},
+            {"source": "memory", "name": "A_2", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:integer", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "a2.qml"},
+            {"source": "memory", "name": "B_1", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:integer", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "b1.qml"},
+            {"source": "memory", "name": "B_2", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:integer", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "b2.qml"},
+            {"source": "memory", "name": "C", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:integer", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "c.qml"},
+            {"source": "memory", "name": "A1B1", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:integer", "attrib": [QgsField('m_dist', QVariant.Int)], "style": "a1b1.qml"},
+            {"source": "memory", "name": "A1B2", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:integer", "attrib": [QgsField('m_dist', QVariant.Int)], "style": "a1b2.qml"},
+            {"source": "memory", "name": "A2B1", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:integer", "attrib": [QgsField('m_dist', QVariant.Int)], "style": "a2b1.qml"},
+            {"source": "memory", "name": "B_INNE", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:integer", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "b_inne.qml"}
+            ]
+        self.lyr_cnt = len(self.lyrs)
+        self.lyrs_names = [i for s in [[v for k, v in d.items() if k == "name"] for d in self.lyrs] for i in s]
 
-def create_layers():
-    """Utworzenie warstw projektu."""
-    uri_p = "Point?crs=epsg:2180&field=id:integer"
-    uri_l = "LineString?crs=epsg:2180&field=id:integer"
-    # B_INNE:
-    b_inne = QgsVectorLayer(uri_p, "B_INNE", "memory")
-    b_inne.setCustomProperty("skipMemoryLayersCheck", 1)
-    pr = b_inne.dataProvider()
-    pr.addAttributes([
-                    QgsField('id', QVariant.String),
-                    QgsField('name', QVariant.String)
-                    ])
-    b_inne.updateFields()
-    QgsProject.instance().addMapLayer(b_inne)
-    b_inne.loadNamedStyle(f"{STYLE_PATH}b_inne.qml")
-    # A2B1:
-    a2b1 = QgsVectorLayer(uri_l, "A2B1", "memory")
-    a2b1.setCustomProperty("skipMemoryLayersCheck", 1)
-    pr = a2b1.dataProvider()
-    pr.addAttributes([
-                    QgsField('m_dist', QVariant.Int)
-                    ])
-    a2b1.updateFields()
-    QgsProject.instance().addMapLayer(a2b1)
-    a2b1.loadNamedStyle(f"{STYLE_PATH}a2b1.qml")
-    # A1B2:
-    a1b2 = QgsVectorLayer(uri_l, "A1B2", "memory")
-    a1b2.setCustomProperty("skipMemoryLayersCheck", 1)
-    pr = a1b2.dataProvider()
-    pr.addAttributes([
-                    QgsField('m_dist', QVariant.Int)
-                    ])
-    a1b2.updateFields()
-    QgsProject.instance().addMapLayer(a1b2)
-    a1b2.loadNamedStyle(f"{STYLE_PATH}a1b2.qml")
-    # A1B1:
-    a1b1 = QgsVectorLayer(uri_l, "A1B1", "memory")
-    a1b1.setCustomProperty("skipMemoryLayersCheck", 1)
-    pr = a1b1.dataProvider()
-    pr.addAttributes([
-                    QgsField('m_dist', QVariant.Int)
-                    ])
-    a1b1.updateFields()
-    QgsProject.instance().addMapLayer(a1b1)
-    a1b1.loadNamedStyle(f"{STYLE_PATH}a1b1.qml")
-    # C:
-    c = QgsVectorLayer(uri_p, "C", "memory")
-    c.setCustomProperty("skipMemoryLayersCheck", 1)
-    # pr = c.dataProvider()
-    # pr.addAttributes([
-    #                 QgsField('id', QVariant.String)
-    #                 ])
-    # c.updateFields()
-    QgsProject.instance().addMapLayer(c)
-    c.loadNamedStyle(f"{STYLE_PATH}c.qml")
-    # B_2:
-    b_2 = QgsVectorLayer(uri_p, "B_2", "memory")
-    b_2.setCustomProperty("skipMemoryLayersCheck", 1)
-    pr = b_2.dataProvider()
-    pr.addAttributes([
-                    QgsField('id', QVariant.String),
-                    QgsField('name', QVariant.String)
-                    ])
-    b_2.updateFields()
-    QgsProject.instance().addMapLayer(b_2)
-    b_2.loadNamedStyle(f"{STYLE_PATH}b2.qml")
-    # B_1:
-    b_1 = QgsVectorLayer(uri_p, "B_1", "memory")
-    b_1.setCustomProperty("skipMemoryLayersCheck", 1)
-    pr = b_1.dataProvider()
-    pr.addAttributes([
-                    QgsField('id', QVariant.String),
-                    QgsField('name', QVariant.String)
-                    ])
-    b_1.updateFields()
-    QgsProject.instance().addMapLayer(b_1)
-    b_1.loadNamedStyle(f"{STYLE_PATH}b1.qml")
-    # A_2:
-    a_2 = QgsVectorLayer(uri_p, "A_2", "memory")
-    a_2.setCustomProperty("skipMemoryLayersCheck", 1)
-    pr = a_2.dataProvider()
-    pr.addAttributes([
-                    QgsField('id', QVariant.String),
-                    QgsField('name', QVariant.String)
-                    ])
-    a_2.updateFields()
-    QgsProject.instance().addMapLayer(a_2)
-    a_2.loadNamedStyle(f"{STYLE_PATH}a2.qml")
-    # A_1:
-    a_1 = QgsVectorLayer(uri_p, "A_1", "memory")
-    a_1.setCustomProperty("skipMemoryLayersCheck", 1)
-    pr = a_1.dataProvider()
-    pr.addAttributes([
-                    QgsField('id', QVariant.String),
-                    QgsField('name', QVariant.String)
-                    ])
-    a_1.updateFields()
-    QgsProject.instance().addMapLayer(a_1)
-    a_1.loadNamedStyle(f"{STYLE_PATH}a1.qml")
+    def project_check(self):
+        """Sprawdzenie struktury warstw projektu."""
+        if len(dlg.proj.mapLayers()) == 0:
+            # QGIS nie ma otwartego projektu, tworzy nowy:
+            self.project_create()
+            return True
+        else:
+            # QGIS ma otwarty projekt - sprawdzanie jego struktury:
+            valid = self.structure_check()
+            if valid:
+                return True
+            else:
+                m_text = f"Brak wymaganych warstw lub grup warstw w otwartym projekcie. Naciśnięcie Tak spowoduje przebudowanie struktury projektu, naciśnięcie Nie przerwie proces uruchamiania wtyczki."
+                reply = QMessageBox.question(dlg.app, "WellMatch", m_text, QMessageBox.Yes, QMessageBox.No)
+                if reply == QMessageBox.No:
+                    return False
+                else:
+                    lyr_missing = self.structure_check(rebuild=True)
+                    if len(lyr_missing) > 0:
+                        result = self.layers_create(lyr_missing)
+                        return result
+                    else:
+                        return True
+
+    def get_google_layer(self):
+        """Tworzenie warstwy z podkładem Google Map."""
+        google_uri = "type=xyz&url=https://mt1.google.com/vt/lyrs%3Dm%26hl%3Dpl%26x%3D%7Bx%7D%26y%3D%7By%7D%26z%3D%7Bz%7D&zmax=18&zmin=0&crs=EPSG2180"
+        return QgsRasterLayer(google_uri, 'Google Map', 'wms')
+
+    def project_create(self):
+        """Utworzenie nowego projektu QGIS."""
+        iface.newProject(False)
+        try:
+            bmap = self.get_google_layer()
+            bmap.renderer().setOpacity(0.75)
+        except:
+            bmap = None
+        if bmap:
+            dlg.proj.addMapLayer(bmap)
+        else:
+            print("Błąd przy załadowaniu WMS!")
+        QgsApplication.processEvents()
+        dlg.proj.setCrs(CRS_1992)
+        canvas = iface.mapCanvas()
+        canvas.setExtent(init_extent())
+        self.groups_create()
+        self.layers_create()
+        self.layer_to_group_move(lyr_name="Google Map")
+        return True
+
+    def groups_create(self):
+        """Utworzenie grup warstw w projekcie."""
+        for grp in self.groups_tree:
+            if grp["level"] == 1:
+                # Utworzenie grup głównych:
+                grp_node = self.root.addGroup(grp["name"])
+                grp_node.setExpanded(True)
+                if "subgroups" in grp:
+                    # Utworzenie podgrup:
+                    for sgrp in grp["subgroups"]:
+                        sgrp_node = grp_node.addGroup(sgrp)
+                        sgrp_node.setExpanded(False)
+
+    def layers_create(self, missing=None):
+        """Utworzenie warstw w projekcie. Podanie atrybutu 'missing' spowoduje, że tylko wybrane warstwy będą dodane."""
+        # Ustalenie ilości dodawanych warstw:
+        i_max = len(missing) if missing else self.lyr_cnt
+        # Utworzenie listy ze słownikami warstw do dodania:
+        lyrs = []
+        if missing:
+            for l_dict in self.lyrs:
+                if l_dict["name"] in missing:
+                    lyrs.append(l_dict)
+        else:
+            lyrs = self.lyrs
+        i = 0
+        # Dodanie warstw:
+        for l_dict in lyrs:
+            i += 1
+            raw_uri = l_dict["uri"]
+            uri = eval("f'{}'".format(raw_uri))
+            if l_dict["source"] == "wms" or l_dict["source"] == "gdal":
+                lyr = QgsRasterLayer(uri, l_dict["name"], l_dict["source"])
+                lyr_required = False
+            else:
+                lyr = QgsVectorLayer(uri, l_dict["name"], l_dict["source"])
+                lyr_required = True
+            if not lyr.isValid() and not lyr_required:
+                m_text = f'Nie udało się poprawnie wczytać podkładu mapowego: {l_dict["name"]}. Naciśnięcie Tak spowoduje kontynuowanie uruchamiania wtyczki (podkład mapowy nie będzie wyświetlany), naciśnięcie Nie przerwie proces uruchamiania wtyczki. Jeśli problem będzie się powtarzał, zaleca się powiadomienie administratora systemu.'
+                reply = QMessageBox.question(dlg.app, "WellMatch", m_text, QMessageBox.Yes, QMessageBox.No)
+                if reply == QMessageBox.No:
+                    return False
+            elif not lyr.isValid() and lyr_required:
+                m_text = f'Nie udało się poprawnie wczytać warstwy: {l_dict["name"]}. Jeśli problem będzie się powtarzał, proszę o powiadomienie administratora systemu (dszr@pgi.gov.pl).'
+                QMessageBox.critical(dlg.app, "WellMatch", m_text)
+                return False
+            if l_dict["source"] == "memory":
+                lyr.setCustomProperty("skipMemoryLayersCheck", 1)
+                pr = lyr.dataProvider()
+                pr.addAttributes(l_dict["attrib"])
+                lyr.updateFields()
+            if "crs" in l_dict:
+                lyr.setCrs(CRS_1992)
+            dlg.proj.addMapLayer(lyr, False)
+            if l_dict["root"]:
+                parent_grp = self.root
+                parent_grp.insertChildNode(l_dict["pos"], QgsLayerTreeLayer(lyr))
+                parent_grp.findLayer(lyr).setItemVisibilityChecked(l_dict["visible"])
+            else:
+                if "pos" in l_dict:
+                    parent_grp = self.root.findGroup(l_dict["parent"])
+                    parent_grp.insertChildNode(l_dict["pos"], QgsLayerTreeLayer(lyr))
+                    parent_grp.findLayer(lyr).setItemVisibilityChecked(False)
+                else:
+                    parent_grp = self.root.findGroup(l_dict["parent"])
+                    node = parent_grp.addLayer(lyr)
+                    node.setItemVisibilityChecked(l_dict["visible"])
+            lyr.loadNamedStyle(f'{STYLE_PATH}{l_dict["style"]}')
+        return True
+
+    def layers_check(self):
+        """Zwraca, czy wszystkie niezbędne warstwy są obecne w projekcie."""
+        lyrs = []
+        missing = []
+        # Utworzenie listy warstw, które znajdują się w projekcie:
+        for lyr in dlg.proj.mapLayers().values():
+            lyrs.append(lyr.name())
+        # Sprawdzenie, czy wszystkie niezbędne warstwy istnieją w projekcie:
+        for lyr in self.lyrs_names:
+            if lyr not in lyrs:
+                print(f"Brakuje warstwy: {lyr}")
+                missing.append(lyr)
+        return missing
+
+    def structure_check(self, rebuild=False):
+        """Zwraca, czy wszystkie niezbędne grupy i warstwy są obecne w projekcie (rebuild=False),
+        albo przebudowuje strukturę projektu (przenosi lub tworzy grupy i przenosi warstwy do odpowiednich grup)
+        i zwraca listę brakujących warstw (rebuild=True)."""
+        missing = []
+        for grp in self.groups_tree:
+            parent_node = self.root
+            grp_node = parent_node.findGroup(grp["name"]) if "name" in grp else parent_node
+            if grp["level"] == 2:
+                parent_node = self.root.findGroup(grp["parent"])
+                grp_node = parent_node.findGroup(grp["name"])
+            if not grp_node and not rebuild:
+                return False
+            elif not grp_node and rebuild:
+                moved = self.group_move(parent_node, grp["name"])
+                if not moved:
+                    parent_node.addGroup(grp["name"])
+                grp_node = parent_node.findGroup(grp["name"])
+            for lyr_name in grp["layers"]:
+                if not self.layer_in_group_found(grp_node, lyr_name) and not rebuild:
+                    return False
+                elif not self.layer_in_group_found(grp_node, lyr_name) and rebuild:
+                    moved = self.layer_to_group_move(grp_node, lyr_name)
+                    if not moved:
+                        missing.append(lyr_name)
+                        continue
+                lyr = dlg.proj.mapLayersByName(lyr_name)[0]
+                if not lyr.isValid():
+                    dlg.proj.removeMapLayer(lyr)
+                    missing.append(lyr_name)
+        if missing:
+            print(f"layer/structure_check - lista brakujących warstw:")
+            print(missing)
+        return missing if rebuild else True
+
+    def group_move(self, parent_node, grp_name):
+        """Przenoszenie grupy (jeśli istnieje) na właściwą pozycję w projekcie."""
+        grp_node = self.root.findGroup(grp_name)
+        if grp_node:
+            # Grupa o podanej nazwie jest w projekcie, ale w innym miejscu i należy ją przenieść:
+            parent = grp_node.parent()
+            new_grp = grp_node.clone()
+            parent_node.insertChildNode(0, new_grp)
+            parent.removeChildNode(grp_node)
+            return True
+        else:
+            return False
+
+    def layer_in_group_found(self, grp_node, lyr_name):
+        """Zwraca, czy warstwa o podanej nazwie znajduje się w podanej grupie."""
+        for child in grp_node.children():
+            if child.name() == lyr_name:
+                return True
+        return False
+
+    def layer_to_group_move(self, grp_node=None, lyr_name=None):
+        """Przenoszenie warstwy (jeśli istnieje) do właściwej grupy."""
+        try:
+            lyr = self.root.findLayer(dlg.proj.mapLayersByName(lyr_name)[0].id())
+        except Exception as err:
+            print(f"layers/layer_to_group_move: {err}")
+            return False
+        # Warstwa o podanej warstwie jest w projekcie, ale w innej grupie i należy ją przenieść:
+        parent = lyr.parent()
+        new_lyr = lyr.clone()
+        # Przeniesienie do grupy (jeśli podana), albo na koniec legendy:
+        grp_node.insertChildNode(0, new_lyr) if grp_node else self.root.insertChildNode(-1, new_lyr)
+        parent.removeChildNode(lyr)
+        return True
 
 def new_project():
     """Utworzenie nowego projektu. Uruchamia się po naciśnięciu btn_new_prj."""

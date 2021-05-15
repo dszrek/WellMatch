@@ -225,10 +225,17 @@ class WellMatch:
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
 
-            # show the dockwidget
-            # TODO: fix to allow choice of dock location
-            self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
-            self.dockwidget.show()
+        project_check = self.dockwidget.lyr.project_check()
+        if not project_check:
+            try:
+                self.dockwidget.close()
+            except Exception as err:
+                print(f"well_match/run: {err}")
+            return
+        # show the dockwidget
+        # TODO: fix to allow choice of dock location
+        self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
+        self.dockwidget.show()
 
 def external_libs_exists():
     """Sprawdzenie, czy są zainstalowane zewnętrzne biblioteki."""

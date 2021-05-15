@@ -42,7 +42,7 @@ from qgis.core import QgsApplication, QgsProject, QgsVectorLayer, QgsFeature, Qg
 from qgis.utils import iface
 
 from .classes import DataFrameModel, ADfModel, PDfModel, run_in_main_thread, CustomButton, AddCLoc
-from .main import init_extent, check_files
+from .main import LayerManager, init_extent, check_files
 
 UI_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'ui' + os.path.sep
 MODEL_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'models' + os.path.sep
@@ -62,6 +62,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         # http://doc.qt.io/qt-5/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+        self.proj = QgsProject.instance()
+        self.app = iface.mainWindow()
+        self.lyr = LayerManager(dlg=self)
         self.gui_mode = "init"
         self.btn_export_joint.setVisible(False)
         self.first_sel = True
@@ -140,7 +143,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.batmp = []
 
         # Parametry:
-        self.a_idx = int()
+        self.a_idx = None
         self.a_x = float()
         self.a_y = float()
         self.a_z = float()
@@ -1967,6 +1970,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
     def closeEvent(self, event):
         self.closingPlugin.emit()
         event.accept()
+        try:
+            self.lyr = None
+        except Exception as err:
+            print(f"closeEvent/self.lyr: {err}")
 
 def list_diff(l1, l2):
     """Zwraca listę elementów l1, które nie występują w l2."""
