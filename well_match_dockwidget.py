@@ -37,7 +37,7 @@ from rapidfuzz import fuzz
 from threading import Thread
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QDockWidget, QMessageBox, QHBoxLayout
-from qgis.PyQt.QtCore import Qt, pyqtSignal, QVariant, QModelIndex, QItemSelectionModel
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QEvent, QVariant, QModelIndex, QItemSelectionModel
 from qgis.core import QgsApplication, QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsRectangle
 from qgis.utils import iface
 
@@ -62,7 +62,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         # http://doc.qt.io/qt-5/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+        self.closing = False
         self.proj = QgsProject.instance()
+        self.proj.layersWillBeRemoved.connect(self.layers_removing)
+        self.proj.legendLayersAdded.connect(self.layers_adding)
         self.app = iface.mainWindow()
         self.lyr = LayerManager(dlg=self)
         self.gui_mode = "init"
@@ -163,6 +166,46 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self._print = run_in_main_thread(print)
 
         self.matched_mdl = None
+
+        self.app.installEventFilter(self)  # Nasłuchiwanie zmiany tytułu okna QGIS
+
+    def eventFilter(self, obj, event):
+        if obj is iface.mainWindow() and event.type() == QEvent.WindowTitleChange:
+            # Zmiana tytułu okna QGIS:
+            title = self.app.windowTitle()
+            new_title = title.replace('- QGIS', '| WellMatch')
+            self.app.setWindowTitle(new_title)
+        if obj is iface.mainWindow() and event.type() == QEvent.Close:
+            # Zamknięcie QGIS'a:
+            self.closing = True
+            self.proj.clear()
+            self.close()
+        return super().eventFilter(obj, event)
+
+    def layers_removing(self, lyr_list):
+        """Emitowany, jeśli warstwy mają być usunięte."""
+        lyrs_required = []
+        for lyr_id in lyr_list:
+            lyr = self.proj.mapLayer(lyr_id)
+            if lyr.name() in self.lyr.lyrs_names:
+                # Zostanie usunięta warstwa niezbędna dla działania wtyczki:
+                lyrs_required.append(lyr)
+        if len(lyrs_required) > 0:
+            m_text = "Została usunięta warstwa niezbędna do prawidłowego funkcjonowania wtyczki. WellMatch musi zostać wyłączony."
+            self.project_corrupted(m_text)
+
+    def layers_adding(self, lyr_list):
+        """Emitowany, jeśli warstwy zostały dodane do legendy. W przypadku dodania warstwy o nazwie zarezerwowanej zostanie dodany suffix '_0'."""
+        for lyr in lyr_list:
+            if lyr.name() in self.lyr.lyrs_names:
+                # Zmiana w nowej warstwie nazwy zarezerwowanej:
+                lyr.setName(f"{lyr.name()}_0")
+
+    def project_corrupted(self, m_text):
+        """Wyświetla komunikat o awaryjnym wyłączeniu wtyczki. Wyłącza wtyczkę po jego zatwierdzeniu."""
+        if not self.closing:
+            QMessageBox.critical(self.app, "WellMatch", m_text)
+            self.close()
 
     def __setattr__(self, attr, val):
         """Przechwycenie zmiany atrybutu."""
@@ -1968,12 +2011,22 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.localizing = False
 
     def closeEvent(self, event):
-        self.closingPlugin.emit()
-        event.accept()
+        try:
+            self.proj.layersWillBeRemoved.disconnect(self.layers_removing)
+            self.proj.legendLayersAdded.disconnect(self.layers_adding)
+        except Exception as err:
+            print(f"closeEvent/self.proj.disconnect: {err}")
+        self.proj = None
         try:
             self.lyr = None
         except Exception as err:
             print(f"closeEvent/self.lyr: {err}")
+        try:
+            self.app.removeEventFilter(self)
+        except Exception as err:
+            print(f"closeEvent/self.app.removeEventFilter: {err}")
+        self.closingPlugin.emit()
+        event.accept()
 
 def list_diff(l1, l2):
     """Zwraca listę elementów l1, które nie występują w l2."""

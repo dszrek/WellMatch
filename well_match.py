@@ -24,6 +24,7 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
+from qgis.utils import iface
 
 # Initialize Qt resources from file resources.py
 from .resources import *
@@ -182,9 +183,10 @@ class WellMatch:
         # for reuse if plugin is reopened
         # Commented next statement since it causes QGIS crashe
         # when closing the docked window:
-        # self.dockwidget = None
-
+        self.dockwidget = None
         self.pluginIsActive = False
+        # Przywrócenie domyślnego tytułu okna QGIS:
+        self.title_change(closing=True)
 
 
     def unload(self):
@@ -197,6 +199,12 @@ class WellMatch:
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
         del self.toolbar
+
+    def title_change(self, closing=False):
+        """Zmiana tytułu okna QGIS."""
+        title = iface.mainWindow().windowTitle()
+        new_title = title.replace('| WellMatch', '- QGIS') if closing else title.replace('- QGIS', '| WellMatch')
+        iface.mainWindow().setWindowTitle(new_title)
 
     #--------------------------------------------------------------------------
 
@@ -232,6 +240,7 @@ class WellMatch:
             except Exception as err:
                 print(f"well_match/run: {err}")
             return
+        self.title_change()
         # show the dockwidget
         # TODO: fix to allow choice of dock location
         self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
