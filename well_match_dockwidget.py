@@ -67,6 +67,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.proj.layersWillBeRemoved.connect(self.layers_removing)
         self.proj.legendLayersAdded.connect(self.layers_adding)
         self.app = iface.mainWindow()
+        self.canvas = iface.mapCanvas()
         self.lyr = LayerManager(dlg=self)
         self.gui_mode = "init"
         self.btn_export_joint.setVisible(False)
@@ -214,10 +215,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.frames_visibility()
         if attr == "localizing":
             if val:
-                canvas = iface.mapCanvas()
                 self.btn_c_add.setChecked(True)
-                self.c_mt = AddCLoc(self, canvas)
-                canvas.setMapTool(self.c_mt)
+                self.c_mt = AddCLoc(self, self.canvas)
+                self.canvas.setMapTool(self.c_mt)
                 self.c_mt.c_added.connect(self.loc_c_add)
             else:
                 self.btn_c_add.setChecked(False)
@@ -1971,10 +1971,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def canvas_zoom(self):
         """Przybliżenie mapy do wyświetlonych obiektów."""
-        canvas = iface.mapCanvas()
         if self.a_idx is None:  # Na mapie nic się nie wyświetla
-            canvas.setExtent(init_extent())
-            iface.mapCanvas().refresh()
+            self.canvas.setExtent(init_extent())
+            self.canvas.refresh()
             return
         l_x = []
         l_y = []
@@ -1999,12 +1998,12 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         for p in p_y:
             l_y.append(self.a_y + (self.a_y - p))
         bbox = QgsRectangle(min(l_x), min(l_y), max(l_x), max(l_y))
-        canvas.setExtent(bbox)
-        if canvas.scale() < 10000 or bbox.area() == 0.0:
-            canvas.zoomScale(10000)
-        cs = canvas.scale()
-        canvas.zoomScale(cs + (cs * 0.4))
-        canvas.refresh()
+        self.canvas.setExtent(bbox)
+        if self.canvas.scale() < 10000 or bbox.area() == 0.0:
+            self.canvas.zoomScale(10000)
+        cs = self.canvas.scale()
+        self.canvas.zoomScale(cs + (cs * 0.4))
+        self.canvas.refresh()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape and self.localizing:
