@@ -257,7 +257,7 @@ class ADfModel(DataFrameModel):
             if pd.isnull(val) or val != val:
                 return '-'
             if index.column() == 2:
-                return str(val.astype(int))
+                return str(val)
             if isinstance(val, (float, np.float32)) and index.column() >= 3:
                 return "%.2f" % val
             return str(val)
@@ -267,9 +267,11 @@ class ADfModel(DataFrameModel):
             elif index.column() == 2:
                 return QColor('#404040')
             elif (isinstance(val, float) or isinstance(val, np.float32)) and index.column() >= 3:
-                if not pd.isnull(val):
+                if not pd.isnull(val) or not val:
                     mod_val = int(round(val * 10, 0))
                     return QColor(ADfModel.COLORS[mod_val])
+                else:
+                    return QVariant()
         elif role == Qt.ForegroundRole:
             if index.column() == 2:
                 return QColor('#ffffff')

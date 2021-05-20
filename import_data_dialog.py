@@ -8,7 +8,7 @@ from qgis.PyQt.QtWidgets import QDialogButtonBox
 from qgis.PyQt import QtGui, QtWidgets, uic
 from qgis.PyQt.QtCore import pyqtSignal
 
-from.classes import IDfModel
+from .classes import IDfModel
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'import_data_dialog.ui'))
