@@ -835,10 +835,12 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         for p in params:
             pdf[f"{p[0]}_rank"] = self.rank_param(pdf[f"{p[0]}_dist"], p[1], p[2])
         # Ranking n:
-        if a[2] and pdf['NAZWA'].values[0]:
-            pdf['n_rank'] = fuzz.token_sort_ratio(str(a[2]), str(pdf['NAZWA'].values[0])) / 100
-        else:
+        if pd.isna(a[2]) or pd.isna(pdf['NAZWA'].values[0]):
             pdf['n_rank'] = 0.0
+        elif not a[2] and not pdf['NAZWA'].values[0]:
+            pdf['n_rank'] = 0.0
+        else:
+            pdf['n_rank'] = fuzz.token_sort_ratio(str(a[2]), str(pdf['NAZWA'].values[0])) / 100
         if pdf['n_rank'].values[0] < 0.7:  # Nazwy są znacznie różne, na wszelki wypadek otwór z bazy A zostaje przeniesiony do następnej fazy
             self.adf.iloc[a[0], 9] = -1  # Oznaczenie, że otwór przeszedł fazę 1 i jest gotowy do fazy 2
             return
@@ -950,13 +952,13 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         for p in params:
             adf[f"{p[0]}_rank"] = self.rank_param(adf[f"{p[0]}_dist"], p[1], p[2])
         # Ranking n:
-        if a_list[1] and b_list[1]:
-            adf['n_rank'] = fuzz.token_sort_ratio(str(a_list[1]), str(b_list[1])) / 100
-        else:
+        if pd.isna(a_list[1]) or pd.isna(b_list[1]):
             adf['n_rank'] = 0.0
+        elif not a_list[1] or not b_list[1]:
+            adf['n_rank'] = 0.0
+        else:
+            adf['n_rank'] = fuzz.token_sort_ratio(str(a_list[1]), str(b_list[1])) / 100
         # Dodanie kolumn z pomiarów z fazy 2:
-        # print(f"a_idx: {adf.index.values[0]}")
-        # print(f"b_idx: {bdf.index.values[0]}")
         a_parq = pd.read_parquet(f"{self.lab_path_content.text()}{os.path.sep}data{os.path.sep}{adf.index.values[0]}.parq")
         cols = ['Avg', 'Me', 'kNN', 'Avg1', 'Me1']
         a_parq = a_parq[a_parq.index == bdf.index.values[0]].reindex(columns=cols)
@@ -1073,6 +1075,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def rank_n(self, tdf):
         """Ranking nazw (fuzzy matching)."""
+        if pd.isna(self.a_n) or pd.isna(tdf):
+            return 0.0
         if not self.a_n or not tdf:
             return 0.0
         return fuzz.token_sort_ratio(str(self.a_n), str(tdf)) / 100
