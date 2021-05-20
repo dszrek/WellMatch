@@ -24,7 +24,6 @@ def dlg_main(_dlg):
     init()
 
 def init():
-    dlg.btn_new_prj.pressed.connect(new_project)
     dlg.btn_open_prj.pressed.connect(open_project)
     dlg.btn_adf.pressed.connect(import_adf)
     dlg.btn_bdf.pressed.connect(import_bdf)
@@ -262,42 +261,37 @@ class LayerManager:
         parent.removeChildNode(lyr)
         return True
 
-def new_project():
-    """Utworzenie nowego projektu. Uruchamia się po naciśnięciu btn_new_prj."""
-    global PATH_PRJ
-    PATH_PRJ = file_dialog(is_folder=True)
-    if os.path.isdir(PATH_PRJ):
-        dlg.lab_path_content.setText(PATH_PRJ)
-        try:
-            os.makedirs(f"{PATH_PRJ}{os.path.sep}data")
-        except FileExistsError:
-            pass
-        open_project(True)
-
-def open_project(new=False):
+def open_project():
     """Załadowanie zapisanego projektu. Uruchamia się po naciśnięciu btn_open_prj."""
     global PATH_PRJ
-    btn_reset()
-    if not new:
-        PATH_PRJ = file_dialog(is_folder=True)
-        if not os.path.isdir(PATH_PRJ):
-            return
-        dlg.lab_path_content.setText(PATH_PRJ)
-    else:
-        print(PATH_PRJ)
-    check_files()
+    if dlg.gui_mode != "init":
+        dlg.project_reset(load=False)
+    dlg.gui_mode = "init"
+    PATH_PRJ = file_dialog(is_folder=True)
+    if not os.path.isdir(PATH_PRJ):
+        dlg.lab_path_content.setText(">> Brak zdefiniowanego projektu <<")
+        return
+    dlg.lab_path_content.setText(PATH_PRJ)
+    df_load()
+
+def df_load():
+    """Załadowanie dataframe'ów projektu."""
     # Próba wczytania zbioru danych A:
     f_path = f"{PATH_PRJ}{os.path.sep}adf.parq"
-    f_path = f_path.replace("\\", "/")
     if os.path.isfile(f_path):
         dlg.load_adf(load_parq(f_path))
+    else:
+        check_files()
+        return
     # Próba wczytania zbioru danych B:
     idfs = idfs_load()
     if not idfs:  # Nie ma kompletu plików
+        check_files()
         return
-    f_path = f"{PATH_PRJ}{os.path.sep}bdf.parq"
     dlg.load_idf(idfs)
+    f_path = f"{PATH_PRJ}{os.path.sep}bdf.parq"
     dlg.load_bdf(load_parq(f_path))
+    dlg.calc_params_max()
     # Próba wczytania abdf:
     f_path = f"{PATH_PRJ}{os.path.sep}abdf.parq"
     if not os.path.isfile(f_path):
@@ -305,7 +299,10 @@ def open_project(new=False):
         dlg.abdf['a_idx'] = dlg.abdf['a_idx'].astype('int64')
         dlg.abdf['b_idx'] = dlg.abdf['b_idx'].astype('int64')
         dlg.abdf['ab'] = dlg.abdf['ab'].astype('int64')
-        dlg.abdf.to_parquet(f_path, compression='gzip')
+        try:
+            dlg.abdf.to_parquet(f_path, compression='gzip')
+        except Exception as err:
+            print(err)
     else:
         dlg.abdf = load_parq(f_path)
     # Próba wczytania badf:
@@ -315,7 +312,10 @@ def open_project(new=False):
         dlg.badf['b_idx'] = dlg.badf['b_idx'].astype('int64')
         dlg.badf['a_idx'] = dlg.badf['a_idx'].astype('int64')
         dlg.badf['ba'] = dlg.badf['ba'].astype('int64')
-        dlg.badf.to_parquet(f_path, compression='gzip')
+        try:
+            dlg.badf.to_parquet(f_path, compression='gzip')
+        except Exception as err:
+            print(err)
     else:
         dlg.badf = load_parq(f_path)
     # Próba wczytania cdf:
@@ -329,7 +329,6 @@ def open_project(new=False):
     else:
         dlg.cdf = load_parq(f_path)
         dlg.cdf['a_idx'] = pd.to_numeric(dlg.cdf['a_idx'], downcast='integer')
-    check_files()
 
 def idfs_load():
     """Zwraca dataframe'y indeksów z bazy B. Pusty, jeśli nie ma kompletu plików."""
@@ -420,28 +419,28 @@ def file_dialog(dir='', for_open=True, fmt='', is_folder=False):
     else:
         return ''
 
-def btn_reset():
-    """Resetuje stan przycisków importu baz."""
-    # dlg.frm_import.setVisible(True)
-    # dlg.frm_status.setVisible(False)
-    dlg.btn_adf.setEnabled(True)
-    dlg.btn_adf.setText("Importuj bazę A")
-    dlg.btn_bdf.setEnabled(True)
-    dlg.btn_bdf.setText("Importuj bazę B")
-
 def check_files():
     """Ustala wartość 'gui_mode' na podstawie zawartości folderu projektu."""
-    print("check_files")
-    # Sprawdzenie folderu 'data':
-    has_data = True if os.path.isdir(f"{PATH_PRJ}{os.path.sep}data") else False
     base_files = ["adf.parq", "bdf.parq", "hdf.parq", "rdf.parq", "zdf.parq"]
     work_files = ["abdf.parq", "badf.parq"]
+    # Sprawdzenie folderu 'data':
+    has_data = True if os.path.isdir(f"{PATH_PRJ}{os.path.sep}data") else False
     # Sprawdzenie plików bazowych:
     has_base = True
+    dlg.btn_adf.setText("Import bazy A")
+    dlg.btn_adf.setEnabled(True)
+    dlg.btn_bdf.setText("Import bazy B")
+    dlg.btn_bdf.setEnabled(True)
     for file_name in base_files:
         if not os.path.isfile(f"{PATH_PRJ}{os.path.sep}{file_name}"):
             has_base = False
-            break
+        else:
+            if file_name == "adf.parq":
+                dlg.btn_adf.setText("Baza A wczytana")
+                dlg.btn_adf.setEnabled(False)
+            if file_name == "bdf.parq":
+                dlg.btn_bdf.setText("Baza B wczytana")
+                dlg.btn_bdf.setEnabled(False)
     # Sprawdzenie plików roboczych:
     has_work = True
     for file_name in work_files:
@@ -456,7 +455,6 @@ def check_files():
     print(f"has_data: {has_data}, has_base: {has_base}, has_work: {has_work}")
     if has_data and not has_base and not has_work:
         dlg.gui_mode = "new"
-        print("change gui_mode to new")
     elif has_data and has_base:
         dlg.gui_mode = "automatic"
     elif not has_data and has_base and has_work:

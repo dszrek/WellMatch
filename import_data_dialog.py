@@ -593,7 +593,6 @@ class ImportDataDialog(QtWidgets.QDialog, FORM_CLASS):  # type: ignore
         path = self.dlg.lab_path_content.text()
         if self.a_b == "A":  # Zbiór danych A
             self.ready.to_parquet(f"{path}{os.path.sep}adf.parq", compression='gzip')
-            self.dlg.load_adf(self.ready)
         elif self.a_b == "B":  # Zbiór danych B
             name_dfs = {'Z' : 'zdf', 'H' : 'hdf', 'ROK' : 'rdf'}
             in_params = ['Z', 'H', 'ROK']
@@ -608,7 +607,7 @@ class ImportDataDialog(QtWidgets.QDialog, FORM_CLASS):  # type: ignore
                         df[1].to_parquet(f"{path}{os.path.sep}{value}.parq", compression='gzip')
             self.dlg.load_idf(exp_dfs)
             self.ready.to_parquet(f"{path}{os.path.sep}bdf.parq", compression='gzip')
-            self.dlg.load_bdf(self.ready)
+        self.dlg._df_load()
 
     def df_pick(self, val):
         """Zwraca dataframe 'self.[param]_in' po podaniu parametru."""
