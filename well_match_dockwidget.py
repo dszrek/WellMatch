@@ -37,12 +37,12 @@ from rapidfuzz import fuzz
 from threading import Thread
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QDockWidget, QMessageBox, QHBoxLayout
-from qgis.PyQt.QtCore import Qt, pyqtSignal, QVariant, QModelIndex, QItemSelectionModel
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QEvent, QVariant, QModelIndex, QItemSelectionModel
 from qgis.core import QgsApplication, QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsRectangle
 from qgis.utils import iface
 
 from .classes import DataFrameModel, ADfModel, PDfModel, run_in_main_thread, CustomButton, AddCLoc
-from .main import init_extent, check_files
+from .main import LayerManager, init_extent, check_files, df_load
 
 UI_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'ui' + os.path.sep
 MODEL_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'models' + os.path.sep
@@ -62,6 +62,13 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         # http://doc.qt.io/qt-5/designer-using-a-ui-file.html
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
+        self.closing = False
+        self.proj = QgsProject.instance()
+        self.proj.layersWillBeRemoved.connect(self.layers_removing)
+        self.proj.legendLayersAdded.connect(self.layers_adding)
+        self.app = iface.mainWindow()
+        self.canvas = iface.mapCanvas()
+        self.lyr = LayerManager(dlg=self)
         self.gui_mode = "init"
         self.btn_export_joint.setVisible(False)
         self.first_sel = True
@@ -140,7 +147,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.batmp = []
 
         # Parametry:
-        self.a_idx = int()
+        self.a_idx = None
         self.a_x = float()
         self.a_y = float()
         self.a_z = float()
@@ -156,10 +163,54 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self._status = run_in_main_thread(self.status)
         self._pbar = run_in_main_thread(self.pbar.setValue)
         self._block = run_in_main_thread(self.block_frames)
-        self._data_remove = run_in_main_thread(self.data_remove)
+        self._post_analize = run_in_main_thread(self.post_analize)
         self._print = run_in_main_thread(print)
 
         self.matched_mdl = None
+
+        self.app.installEventFilter(self)  # Nasłuchiwanie zmiany tytułu okna QGIS
+
+    def eventFilter(self, obj, event):
+        if obj is iface.mainWindow() and event.type() == QEvent.WindowTitleChange:
+            # Zmiana tytułu okna QGIS:
+            title = self.app.windowTitle()
+            new_title = title.replace('- QGIS', '| WellMatch')
+            self.app.setWindowTitle(new_title)
+        if obj is iface.mainWindow() and event.type() == QEvent.Close:
+            # Zamknięcie QGIS'a:
+            self.closing = True
+            self.proj.clear()
+            self.close()
+        return super().eventFilter(obj, event)
+
+    def _df_load(self):
+        """Uruchomienie funkcji 'df_load' z .main z poziomu import_data_dialog."""
+        df_load()
+
+    def layers_removing(self, lyr_list):
+        """Emitowany, jeśli warstwy mają być usunięte."""
+        lyrs_required = []
+        for lyr_id in lyr_list:
+            lyr = self.proj.mapLayer(lyr_id)
+            if lyr.name() in self.lyr.lyrs_names:
+                # Zostanie usunięta warstwa niezbędna dla działania wtyczki:
+                lyrs_required.append(lyr)
+        if len(lyrs_required) > 0:
+            m_text = "Została usunięta warstwa niezbędna do prawidłowego funkcjonowania wtyczki. WellMatch musi zostać wyłączony."
+            self.project_corrupted(m_text)
+
+    def layers_adding(self, lyr_list):
+        """Emitowany, jeśli warstwy zostały dodane do legendy. W przypadku dodania warstwy o nazwie zarezerwowanej zostanie dodany suffix '_0'."""
+        for lyr in lyr_list:
+            if lyr.name() in self.lyr.lyrs_names:
+                # Zmiana w nowej warstwie nazwy zarezerwowanej:
+                lyr.setName(f"{lyr.name()}_0")
+
+    def project_corrupted(self, m_text):
+        """Wyświetla komunikat o awaryjnym wyłączeniu wtyczki. Wyłącza wtyczkę po jego zatwierdzeniu."""
+        if not self.closing:
+            QMessageBox.critical(self.app, "WellMatch", m_text)
+            self.close()
 
     def __setattr__(self, attr, val):
         """Przechwycenie zmiany atrybutu."""
@@ -168,10 +219,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.frames_visibility()
         if attr == "localizing":
             if val:
-                canvas = iface.mapCanvas()
                 self.btn_c_add.setChecked(True)
-                self.c_mt = AddCLoc(self, canvas)
-                canvas.setMapTool(self.c_mt)
+                self.c_mt = AddCLoc(self, self.canvas)
+                self.canvas.setMapTool(self.c_mt)
                 self.c_mt.c_added.connect(self.loc_c_add)
             else:
                 self.btn_c_add.setChecked(False)
@@ -364,7 +414,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.cdf.to_parquet(f"{self.lab_path_content.text()}{os.path.sep}cdf.parq", compression='gzip')
         print("cdf_saved")
 
-    def save_abdf(self):
+    def save_abdf(self, copy=None):
         """Zapisanie tymczasowej listy z połączeniami pomiędzy otworami do dataframe'u i jego zapis na dysku."""
         try:
             self.abdf = pd.concat([self.abdf, pd.DataFrame(self.abtmp, columns=['a_idx', 'b_idx', 'ab', 'ba'])]).reset_index(drop=True)
@@ -372,6 +422,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             print(e)
             return
         self.abdf.to_parquet(f"{self.lab_path_content.text()}{os.path.sep}abdf.parq", compression='gzip')
+        if copy:
+            self.abdf.to_parquet(f"{self.lab_path_content.text()}{os.path.sep}abdf_{copy}.parq", compression='gzip')
         self.abtmp = []
         print("abdf_saved")
 
@@ -434,12 +486,60 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         te = tm.perf_counter()
         self._status(f"Czas działania wstępnej analizy: {tm.strftime('%H:%M:%S', tm.gmtime(te-ts))}")
 
-    def data_remove(self):
-        """Usunięcie folderu 'data' wraz z zawartością po zakończeniu analizy wstępnej."""
+    def project_reset(self, load=True):
+        self.first_sel = True
+        self.analizing = False
+        self.abtmp = []
+        self.batmp = []
+        self.a_idx = None
+        self.a_id = None
+        self.a_x = float()
+        self.a_y = float()
+        self.a_z = float()
+        self.a_h = float()
+        self.a_r = int()
+        self.a_pnt = None
+        self.pdf_sel = False
+        self.a2_idx = int()
+        self.adf = pd.DataFrame()
+        self.bdf = pd.DataFrame()
+        self.bdf_1 = pd.DataFrame()
+        self.abdf = pd.DataFrame()
+        self.badf = pd.DataFrame()
+        self.zdf = pd.DataFrame()
+        self.hdf = pd.DataFrame()
+        self.rdf = pd.DataFrame()
+        self.pdf = pd.DataFrame()
+        self.sel_pdf = pd.DataFrame()
+        self.pck_pdf = pd.DataFrame()
+        self.pck_adf = pd.DataFrame()
+        self.other_pdf = pd.DataFrame()
+        self.cdf = pd.DataFrame()
+        self.adf_o = pd.DataFrame()
+        self.adf_a = pd.DataFrame()
+        self.adf_p = pd.DataFrame()
+        self.adf_u = pd.DataFrame()
+        self.adf_s = pd.DataFrame()
+        if load:
+            df_load()
+
+    def post_analize(self):
+        """Usunięcie folderu 'data' wraz z zawartością po zakończeniu analizy wstępnej i ponowne załadowanie wszystkich dataframe'ów."""
         data_path = f"{self.lab_path_content.text()}{os.path.sep}data"
         shutil.rmtree(data_path, ignore_errors=True)
         check_files()
-        self.cat_upd()
+        self._block(False)
+        self.project_reset()
+        # a_path = f"{self.lab_path_content.text()}{os.path.sep}adf.parq"
+        # adf = load_parq(a_path)
+        # self.load_adf(adf)
+        # b_path = f"{self.lab_path_content.text()}{os.path.sep}bdf.parq"
+        # bdf = load_parq(b_path)
+        # self.load_bdf(bdf)
+        # ab_path = f"{self.lab_path_content.text()}{os.path.sep}abdf.parq"
+        # abdf = load_parq(b_path)
+        # self.load_bdf(bdf)
+        # self.cat_upd()
 
     def matched_model_load(self):
         """Załadowanie modelu ml oceny jakości dopasowania."""
@@ -522,7 +622,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self._pbar(0)
         self.save_adf()
         self.save_bdf()
-        self.save_abdf()
+        self.save_abdf(copy=1)
         # self._block(False)
 
     def automatic_analize_2(self):
@@ -562,7 +662,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self._status(f"FAZA 2/4 [{i} / {a}]:\n\nczas iteracji:                  {round(i_time, 3)} sek\nśredni czas iteracji:         {round(avg_time, 3)} sek\nczas trwania fazy:          {tm.strftime('%H:%M:%S', tm.gmtime(tei-ts))}\nczas zakończenia fazy:    {tm.strftime('%H:%M:%S', tm.gmtime(time_left))}")
         self._pbar(0)
         self.save_adf()
-        self.save_abdf()
+        self.save_abdf(copy=2)
         # self._block(False)
 
     def automatic_analize_rev(self):
@@ -643,7 +743,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.badf.set_index('id', inplace=True)
             self.abdf = self.abdf.merge(self.badf['ba'], left_index=True, right_index=True)
             self.abdf = self.abdf.sort_values(['a_idx','ba']).reset_index(drop=True)
-            self.save_abdf()
+            self.save_abdf(copy=3)
         df = self.abdf.copy()
         # Utworzenie dataframe'u z ustalonymi połączeniami A do B (z czystej listy otworów A):
         a_list = df['a_idx'].unique()
@@ -685,26 +785,27 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.save_bdf()
         if self.analizing:
             # Usunięcie katalogu 'data' po zakończonej analizie wstępnej:
-            self._data_remove()
-        self._block(False)
+            self._post_analize()
+        # self._block(False)
 
     def main_links(self, df, adf):
         """Zwraca dataframe z ustalonymi linkami między otworami A i B (bez powtórzeń otworów B)."""
-        # print(df)
-        # print(adf)
+        a_tot = len(adf)
+        a = 0
         i_max = df['ab'].max()
         j_max = df['ba'].max()
         i = 0
         j = 0
         for i in range(i_max):
             for j in range(j_max):
+                self._pbar(round((a/a_tot)*100 ,0))
+                self._status(f"FAZA 4/4 [{a} / {a_tot}]:\n\nTworzenie macierzy połączeń ustalonych [i: {i} \ {i_max} | j: {j} \ {j_max}]")
                 df_0 = df[(df['ab'] == i) & (df['ba'] == j)]
                 a_0 = df_0['a_idx'].tolist()
-                # print(len(a_0))
                 if len(a_0) == 0:
                     continue
+                a += len(a_0)
                 b_0 = df_0['b_idx'].tolist()
-                # print(len(b_0))
                 df_0 = df_0.set_index('a_idx')
                 adf.update(df_0)
                 df_0 = df_0.reset_index()
@@ -734,10 +835,12 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         for p in params:
             pdf[f"{p[0]}_rank"] = self.rank_param(pdf[f"{p[0]}_dist"], p[1], p[2])
         # Ranking n:
-        if a[2] and pdf['NAZWA'].values[0]:
-            pdf['n_rank'] = fuzz.token_sort_ratio(str(a[2]), str(pdf['NAZWA'].values[0])) / 100
-        else:
+        if pd.isna(a[2]) or pd.isna(pdf['NAZWA'].values[0]):
             pdf['n_rank'] = 0.0
+        elif not a[2] and not pdf['NAZWA'].values[0]:
+            pdf['n_rank'] = 0.0
+        else:
+            pdf['n_rank'] = fuzz.token_sort_ratio(str(a[2]), str(pdf['NAZWA'].values[0])) / 100
         if pdf['n_rank'].values[0] < 0.7:  # Nazwy są znacznie różne, na wszelki wypadek otwór z bazy A zostaje przeniesiony do następnej fazy
             self.adf.iloc[a[0], 9] = -1  # Oznaczenie, że otwór przeszedł fazę 1 i jest gotowy do fazy 2
             return
@@ -849,13 +952,13 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         for p in params:
             adf[f"{p[0]}_rank"] = self.rank_param(adf[f"{p[0]}_dist"], p[1], p[2])
         # Ranking n:
-        if a_list[1] and b_list[1]:
-            adf['n_rank'] = fuzz.token_sort_ratio(str(a_list[1]), str(b_list[1])) / 100
-        else:
+        if pd.isna(a_list[1]) or pd.isna(b_list[1]):
             adf['n_rank'] = 0.0
+        elif not a_list[1] or not b_list[1]:
+            adf['n_rank'] = 0.0
+        else:
+            adf['n_rank'] = fuzz.token_sort_ratio(str(a_list[1]), str(b_list[1])) / 100
         # Dodanie kolumn z pomiarów z fazy 2:
-        # print(f"a_idx: {adf.index.values[0]}")
-        # print(f"b_idx: {bdf.index.values[0]}")
         a_parq = pd.read_parquet(f"{self.lab_path_content.text()}{os.path.sep}data{os.path.sep}{adf.index.values[0]}.parq")
         cols = ['Avg', 'Me', 'kNN', 'Avg1', 'Me1']
         a_parq = a_parq[a_parq.index == bdf.index.values[0]].reindex(columns=cols)
@@ -972,6 +1075,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def rank_n(self, tdf):
         """Ranking nazw (fuzzy matching)."""
+        if pd.isna(self.a_n) or pd.isna(tdf):
+            return 0.0
         if not self.a_n or not tdf:
             return 0.0
         return fuzz.token_sort_ratio(str(self.a_n), str(tdf)) / 100
@@ -1092,7 +1197,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.pck_adf = pd.DataFrame(columns=self.pck_adf.columns)
         self.other_pdf = pd.DataFrame(columns=self.other_pdf.columns)
         self.pdf_sel = False
-        self.pdf_mdl.setDataFrame(self.p_col(self.pdf))
+        try:
+            self.pdf_mdl.setDataFrame(self.p_col(self.pdf))
+        except Exception as err:
+            print(f"clear_pdf: {err}")
         self.frm_b.setVisible(False)
         self.frm_solver_title.setVisible(False)
         self.frm_a1.setVisible(False)
@@ -1116,14 +1224,26 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             else:
                 self.clear_adf()
             return
+        if self.gui_mode != "manual":
+            # Zablokowanie wykonywania funkcji przed wykonaniem analizy wstępnej
+            return
         if self.sel_change_void:
             self.sel_change_void = False
             a_id = self.a_id
             self.a_id = None
         else:
             a_id = index.sibling(index.row(), 0).data()
-        self.a_idx = self.adf.index[self.adf['ID'].astype(str) == a_id][0]
+        print("==============")
+        print(f"a_id: {a_id}")
+        try:
+            self.a_idx = self.adf.index[self.adf['ID'].astype(str) == a_id][0]
+        except Exception as err:
+            print(f"adf_sel_change: {err}")
+            self.a_idx = None
+            self.clear_adf()
+            return
         print(f"a_idx: {self.a_idx}")
+        print("==============")
         # with pd.option_context('display.max_rows', None, 'display.max_columns', None): 
         #     print(self.adf.iloc[self.a_idx, :])
         self.a_n = self.adf.loc[self.a_idx, 'NAZWA']
@@ -1556,6 +1676,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.save_adf()
         else:
             self.adf = df
+            self.adf = self.acol_dtypes(self.adf)
         tv_adf_widths = [60, 224, 30, 30, 30, 30, 30, 30, 30, 30]
         tv_adf_headers = ['ID','NAZWA', ' ', 'M', 'N', 'Z', 'Gł.', 'Rok', 'Śr.', 'Me.']
         self.adf_mdl = ADfModel(df=self.a_col(self.adf), tv=self.tv_adf, col_widths=tv_adf_widths, col_names=tv_adf_headers)
@@ -1564,13 +1685,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.first_sel = True
         self.adf_sel_change()
         self.status(f"Do uzgodnienia wyznaczono {len(self.adf.index)} otworów.")
-        self.btn_adf.setText("Baza A wczytana")
-        self.btn_adf.setEnabled(False)
         if len(self.adf) > 0:
             self.set_first_cat()
         check_files()
-        if not self.btn_bdf.isEnabled():
-            self.calc_params_max()
 
     def load_bdf(self, df):
         """Załadowanie bdf po imporcie danych B."""
@@ -1580,11 +1697,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.bdf = df
         self.bdf = self.bcol_dtypes(self.bdf)
         self.save_bdf()
-        self.btn_bdf.setText("Baza B wczytana")
-        self.btn_bdf.setEnabled(False)
         check_files()
-        if not self.btn_adf.isEnabled():
-            self.calc_params_max()
 
     def init_pdf_tv(self):
         """Konfiguracja tableview pdf."""
@@ -1648,6 +1761,16 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def acol_dtypes(self, df):
         """Ustawienie kolumnom dataframe'a odpowiednich typów danych."""
+        try:
+            df['ID'] = df['ID'].convert_dtypes()
+        except Exception as err:
+            print(f"acol_dtypes[ID]: {err}")
+        df['ID'] = df['ID'].astype(object)
+        try:
+            df['NAZWA'] = df['NAZWA'].convert_dtypes()
+        except Exception as err:
+            print(f"acol_dtypes[NAZWA]: {err}")
+        df['NAZWA'] = df['NAZWA'].astype(object)
         df['X'] = df['X'].astype('float64')
         df['Y'] = df['Y'].astype('float64')
         df['Z'] = df['Z'].astype('float32')
@@ -1655,10 +1778,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         df['ROK'] = df['ROK'].astype('Int64')
         df['loc'] = df['loc'].astype('category')
         df['loc'].cat.set_categories(range(0, 2), inplace=True)
-        df['loc'] = 0
+        df['loc'] = df['loc'].fillna(0)
         df['cat'] = df['cat'].astype('category')
         df['cat'].cat.set_categories(['o', 'p', 'a', 'w', 'u'], inplace=True)
-        df['cat'] = 'o'
+        df['cat'] = df['cat'].fillna('o')
         df['bin'] = df['bin'].astype('category')
         df['bin'].cat.set_categories(range(-1, 9), inplace=True)
         df['m_rank'] = df['m_rank'].astype('float32')
@@ -1676,9 +1799,16 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def bcol_dtypes(self, df):
         """Ustawienie kolumnom dataframe'a odpowiednich typów danych."""
-        # df['ID'] = pd.to_numeric(df['ID'], errors='coerce')
-        # df['ID'] = df['ID'].astype(int)
-        df['ID'] = df['ID'].astype(str)
+        try:
+            df['ID'] = df['ID'].convert_dtypes()
+        except Exception as err:
+            print(f"acol_dtypes[ID]: {err}")
+        df['ID'] = df['ID'].astype(object)
+        try:
+            df['NAZWA'] = df['NAZWA'].convert_dtypes()
+        except Exception as err:
+            print(f"acol_dtypes[NAZWA]: {err}")
+        df['NAZWA'] = df['NAZWA'].astype(object)
         df['X'] = df['X'].astype('float64')
         df['Y'] = df['Y'].astype('float64')
         df['Z'] = df['Z'].astype('float32')
@@ -1925,10 +2055,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def canvas_zoom(self):
         """Przybliżenie mapy do wyświetlonych obiektów."""
-        canvas = iface.mapCanvas()
         if self.a_idx is None:  # Na mapie nic się nie wyświetla
-            canvas.setExtent(init_extent())
-            iface.mapCanvas().refresh()
+            self.canvas.setExtent(init_extent())
+            self.canvas.refresh()
             return
         l_x = []
         l_y = []
@@ -1953,18 +2082,32 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         for p in p_y:
             l_y.append(self.a_y + (self.a_y - p))
         bbox = QgsRectangle(min(l_x), min(l_y), max(l_x), max(l_y))
-        canvas.setExtent(bbox)
-        if canvas.scale() < 10000 or bbox.area() == 0.0:
-            canvas.zoomScale(10000)
-        cs = canvas.scale()
-        canvas.zoomScale(cs + (cs * 0.4))
-        canvas.refresh()
+        self.canvas.setExtent(bbox)
+        if self.canvas.scale() < 10000 or bbox.area() == 0.0:
+            self.canvas.zoomScale(10000)
+        cs = self.canvas.scale()
+        self.canvas.zoomScale(cs + (cs * 0.4))
+        self.canvas.refresh()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape and self.localizing:
             self.localizing = False
 
     def closeEvent(self, event):
+        try:
+            self.proj.layersWillBeRemoved.disconnect(self.layers_removing)
+            self.proj.legendLayersAdded.disconnect(self.layers_adding)
+        except Exception as err:
+            print(f"closeEvent/self.proj.disconnect: {err}")
+        self.proj = None
+        try:
+            self.lyr = None
+        except Exception as err:
+            print(f"closeEvent/self.lyr: {err}")
+        try:
+            self.app.removeEventFilter(self)
+        except Exception as err:
+            print(f"closeEvent/self.app.removeEventFilter: {err}")
         self.closingPlugin.emit()
         event.accept()
 
