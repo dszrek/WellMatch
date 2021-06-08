@@ -1,5 +1,11 @@
 # Changelog (dziennik zmian):
 
+## [0.9.3] - 2021-06-08 (hotfix)
+
+### Poprawiono
+- Błąd związany z wyświetlaniem na mapie otworów, których wartosć ID nie jest numeryczna (złożona z samych cyfr).
+- Błąd uniemożliwiający ustanowienie lokalizacji typu C.
+
 ## [0.9.2] - 2021-05-20
 
 ### Dodano
