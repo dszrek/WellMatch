@@ -392,8 +392,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         else:
             if x:
                 # Tryb aktualizacji wiersza:
-                self.cdf.loc[pck_cdf, ['X']] = x
-                self.cdf.loc[pck_cdf, ['Y']] = y
+                self.cdf.loc[pck_cdf.index, ['X']] = x
+                self.cdf.loc[pck_cdf.index, ['Y']] = y
             else:
                 # Tryb kasowania wiersza:
                 self.cdf = self.cdf.drop(pck_cdf.index)
@@ -1233,8 +1233,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.a_id = None
         else:
             a_id = index.sibling(index.row(), 0).data()
-        print("==============")
-        print(f"a_id: {a_id}")
         try:
             self.a_idx = self.adf.index[self.adf['ID'].astype(str) == a_id][0]
         except Exception as err:
@@ -1242,8 +1240,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.a_idx = None
             self.clear_adf()
             return
-        print(f"a_idx: {self.a_idx}")
-        print("==============")
+        # Stworzenie ramki informacyjnej dla konsoli pythona:
+        id_long = len(str(a_id)) if a_id else 4
+        idx_long = len(str(self.a_idx)) if self.a_idx else 4
+        frame_long = id_long + 5 if id_long > idx_long else idx_long + 5
+        print(f"╔{'═' * (frame_long + 4)}╗")
+        print(f"║ a_idx: {str(self.a_idx)}{' ' * (frame_long - (idx_long + 4))}║")
+        print(f"║  a_id: {str(a_id)}{' ' * (frame_long - (id_long + 4))}║")
+        print(f"╚{'═' * (frame_long + 4)}╝")
         # with pd.option_context('display.max_rows', None, 'display.max_columns', None): 
         #     print(self.adf.iloc[self.a_idx, :])
         self.a_n = self.adf.loc[self.a_idx, 'NAZWA']
@@ -1777,7 +1781,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         df['H'] = df['H'].astype('float32')
         df['ROK'] = df['ROK'].astype('Int64')
         df['loc'] = df['loc'].astype('category')
-        df['loc'].cat.set_categories(range(0, 2), inplace=True)
+        df['loc'].cat.set_categories(range(0, 3), inplace=True)
         df['loc'] = df['loc'].fillna(0)
         df['cat'] = df['cat'].astype('category')
         df['cat'].cat.set_categories(['o', 'p', 'a', 'w', 'u'], inplace=True)
