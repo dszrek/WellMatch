@@ -87,7 +87,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.btn_anal.clicked.connect(lambda: self.well_set('a'))
         self.btn_join.clicked.connect(lambda: self.well_set('p'))
         self.btn_export_joint.clicked.connect(self.export_joint)
-        self.btn_csv.clicked.connect(self.manual_analize)
+        self.btn_csv.clicked.connect(self.manual_analize) #lambda: self.level_up(limit=100))
         self.btn_run.pressed.connect(self.analize_run)
         self.btn_c_add = CustomButton(self.frm_loc, name="c_add", size=36, checkable=True)
         self.btn_c_del = CustomButton(self.frm_loc, name="c_del", size=36, checkable=False, visible=False)
@@ -993,7 +993,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         act_adf.update(adf)
         self.adf.update(act_adf)
 
-    def estimate_bin(self, tdf, add_cols=False, manual=False, trim=True):
+    def estimate_bin(self, tdf, add_cols=False, manual=False, trim=True, limit=10):
         """Oszacowanie najlepszych otworów z koszyka."""
         # Obliczenie średniej ze wszystkich parametrów (bez wartości 0):
         tdf['Avg'] = tdf[['m_rank', 'z_rank', 'h_rank', 'r_rank', 'n_rank']].replace(0.0, np.NaN).mean(axis=1)
@@ -1020,7 +1020,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         tdf = tdf.sort_values('kNN')
         if trim:
             # Usunięcie nadmiarowych otworów:
-            tdf = tdf.head(10)
+            tdf = tdf.head(limit)
         if add_cols:  # Wykonywane tylko przy analizie automatycznej w fazie 2
             # Dodanie kolumn z różnicami wyników średniej i mediany:
             tdf['Avg1'] = tdf['Avg'] - tdf['Avg'].shift(periods=-1, fill_value=1)
@@ -1093,8 +1093,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         # Obliczenie we wszystkich otworach B parametrów odległości i rankingu względem wybranego otworu A:
         pdf = self.bdf.copy()
         pdf_1 = self.analize_selected(pdf)
-        # Wybór 10 najbardziej dopasowanych otworów B metodą K Najbliższych Sąsiadów:
-        pdf_1 = self.estimate_bin(pdf_1)
+        cur_lvl = int(self.adf.loc[self.a_idx, 'bin'])
+        limit = 10 if cur_lvl < 2 else 100
+        # Wybór 10 lub 100 najbardziej dopasowanych otworów B metodą K Najbliższych Sąsiadów:
+        pdf_1 = self.estimate_bin(pdf_1, limit=limit)
         # Skasowanie dotychczasowych połączeń między aktualnie wybranym otworem A i otworami B:
         mask = self.abdf[self.abdf['a_idx'] == self.a_idx]
         self.abdf = self.abdf.drop(mask.index)
@@ -1104,7 +1106,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         for link in links:
             self.abtmp.append(link)
         self.save_abdf()
-        self.adf.iloc[self.a_idx, -12] = 2  # Aktualizacja kolumny 'bin' w adf
+        self.adf.iloc[self.a_idx, -12] = cur_lvl + 1  # Aktualizacja kolumny 'bin' w adf
         self.cat_upd()
         te = tm.perf_counter()
         print(f"time: {round(te - ts, 2)} sek.")
@@ -1283,7 +1285,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.frm_solver.setVisible(True)
         self.frm_b.setVisible(True)
         cur_lvl = int(self.adf.loc[self.a_idx, 'bin'])
-        self.btn_lvl.setEnabled(True) if cur_lvl < 2 else self.btn_lvl.setEnabled(False)
+        self.btn_lvl.setText("PEŁNA ANALIZA [10]") if cur_lvl <= 1 else self.btn_lvl.setText("PEŁNA ANALIZA [100]")
+        self.btn_lvl.setEnabled(True) if cur_lvl < 3 else self.btn_lvl.setEnabled(False)
         self.loc = int(self.adf.loc[self.a_idx, 'loc'])
         if self.loc == 2:
             self.btn_loc.setChecked(False)
@@ -1485,6 +1488,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.pck_pdf = pd.DataFrame(columns=self.pck_pdf.columns)
         self.pck_adf = pd.DataFrame(columns=self.pck_adf.columns)
         self.other_pdf = pd.DataFrame(columns=self.other_pdf.columns)
+        self.pdf_mdl.sort_reset()  # Wyłączenie sortowania po kolumnie
         # Utworzenie listy otworów z bazy B, które mają linki z aktualnym otworem z bazy A:
         pdf_1 = self.abdf[self.abdf['a_idx'] == self.a_idx]
         pdf_1 = pdf_1.drop(columns=['a_idx'])
@@ -1654,12 +1658,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         if len(tv_idx) == 0:
             self.pdf_sel = False
             index = QModelIndex()
+            self.tv_pdf.scrollToTop()
             self.frm_b1.setVisible(False)
             self.frm_b2.setVisible(False)
             self.frm_b3.setVisible(False)
         else:
             self.pdf_sel = True
             index = self.tv_pdf.model().index(tv_idx[0], 0)
+            self.tv_pdf.scrollTo(index)
         self.tv_pdf.setCurrentIndex(index)
         self.canvas_update()
 
