@@ -1,5 +1,15 @@
 # Changelog (dziennik zmian):
 
+## [0.9.4] - 2021-07-01
+
+### Dodano
+- Możliwość sortowania tabeli z otworami B.
+
+### Zmieniono
+- Po pierwszym kliknięciu na nagłówku kolumny w tabelach z otworami A lub B dane sortują się malejąco (poprzednio domyślnie sortowały się rosnąco).
+- Przycisk "PEŁNA ANALIZA" do tej pory służył w celu przeprowadzenia analizy dopasowania otworu A ze wszystkimi otworami z bazy B. Po przeprowadzeniu analizy zwracana była lista 10. najlepiej dopasowanych otworów B. Okazało się, że w niektórych przypadkach limit 10 otworów był zbyt rygorystyczny i otwór, który powinien zostać przypasowany nie pojawiał się na liście. W tej wersji wtyczki, po przeprowadzonej pełnej analizie i wyłonieniu 10. najlepszych otworów (użycie przycisku "PEŁNA ANALIZA [10]") istnieje możliwość powtórzenia analizy ("PEŁNA ANALIZA [100]"), po której zwrócone zostanie 100 otworów (otwór A otrzymuje wtedy status przeanalizowania równy "3"). Do analizy tak licznej ilości otworów B zaleca się używanie sortowania tabeli otworów B po poszczególnych kolumnach.
+
+
 ## [0.9.3] - 2021-06-08 (hotfix)
 
 ### Poprawiono
