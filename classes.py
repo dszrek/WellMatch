@@ -61,15 +61,11 @@ class ADfDelegate(QStyledItemDelegate):
         super().initStyleOption(option, index)
         selected = option.state & QStyle.State_Selected
         focused = option.state & QStyle.State_HasFocus
-        # option.font.setBold(selected)
-        # print(option.value())
-        # override what you need to change in option
         if selected:
             option.state = option.state & ~QStyle.State_Selected
         if focused:
             option.state = option.state & ~QStyle.State_HasFocus
-            # option.backgroundBrush = QColor(255,255,255,255)
-        # else:
+
 
 class PDfDelegate(QStyledItemDelegate):
     def __init__(self, parent=None, *args):
@@ -104,16 +100,10 @@ class PDfDelegate(QStyledItemDelegate):
         super().initStyleOption(option, index)
         selected = option.state & QStyle.State_Selected
         focused = option.state & QStyle.State_HasFocus
-        # print(option)
-        # option.font.setBold(selected)
-        # print(option.text)
-        # override what you need to change in option
         if selected:
             option.state = option.state & ~QStyle.State_Selected
         if focused:
             option.state = option.state & ~QStyle.State_HasFocus
-            # option.backgroundBrush = QColor(255,255,255,255)
-        # else:
 
 
 class DataFrameModel(QAbstractTableModel):
@@ -131,7 +121,6 @@ class DataFrameModel(QAbstractTableModel):
         self.tv.horizontalHeader().setSortIndicatorShown(False)
         self.sort_col = -1
         self.sort_ord = 1
-        
 
     def col_names(self, df, col_names):
         """Nadanie nazw kolumn tableview'u."""
@@ -166,8 +155,8 @@ class DataFrameModel(QAbstractTableModel):
             else:
                 return str(self._dataframe.index[section])
         return QVariant()
-        # if role == Qt.DecorationRole and orientation == Qt.Horizontal:
-        #     self.tv.setSortIndicatorShown(False)
+        if role == Qt.InitialSortOrderRole:
+            return QVariant.fromValue(Qt.AscendingOrder)
 
     def rowCount(self, parent=QModelIndex()):
         if parent.isValid():
@@ -190,15 +179,6 @@ class DataFrameModel(QAbstractTableModel):
             val = self._dataframe.iloc[row][col]
         except:
             return QVariant()
-        # if role == Qt.DisplayRole:
-        # #     # Get the raw value
-        # #     if isinstance(val, float) and (index.column() == 2 or index.column() == 3):
-        # #         return "%.2f" % val
-        # #     if isinstance(val, float) and (index.column() == 4 or index.column() == 5):
-        # #         return "%.1f" % val
-        # #     if isinstance(val, float) & index.column() == 6:
-        # #         return "%.0f" % val
-        #     return str(val)
         if role == DataFrameModel.ValueRole:
             return val
         if role == DataFrameModel.DtypeRole:
@@ -295,7 +275,7 @@ class ADfModel(DataFrameModel):
         self.beginResetModel()
         self._dataframe = dataframe.copy()
         if self.sort_col >= 0:  # Sortowanie włączone
-            self._dataframe = self._dataframe.sort_values(by=self._dataframe.columns[self.sort_col], ascending= not self.sort_ord).reset_index(drop=True)
+            self._dataframe = self._dataframe.sort_values(by=self._dataframe.columns[self.sort_col], ascending=self.sort_ord).reset_index(drop=True)
         self.endResetModel()
         if is_sel:
             self.tv.setCurrentIndex(index)
@@ -305,7 +285,7 @@ class ADfModel(DataFrameModel):
             self.layoutAboutToBeChanged.emit()
             self.tv.selectionModel().clearSelection()
             self.tv.setCurrentIndex(QModelIndex())
-            self._dataframe = self._dataframe.sort_values(by=self._dataframe.columns[col], ascending= not order).reset_index(drop=True)
+            self._dataframe = self._dataframe.sort_values(by=self._dataframe.columns[col], ascending=order).reset_index(drop=True)
             self.sort_col = col
             self.sort_ord = order
             self.layoutChanged.emit()
@@ -313,7 +293,9 @@ class ADfModel(DataFrameModel):
             print(e)
 
 class PDfModel(DataFrameModel):
-    """Subklasa dataframemodel dla tableview wyświetlającą adf."""
+    """Subklasa dataframemodel dla tableview wyświetlającą pdf."""
+
+    COLORS = ['#f8696b', '#f98370', '#fb9d75', '#fcb77a', '#fed17f', '#ffeb84', '#e0e282', '#c1d980', '#a1d07f', '#82c77d', '#63be7b']
 
     def __init__(self, df=pd.DataFrame(), tv=None, col_widths=[], col_names=[], parent=None):
         super().__init__(df, tv, col_names)
@@ -354,28 +336,20 @@ class PDfModel(DataFrameModel):
         elif role == Qt.DisplayRole:
             if pd.isnull(val) or val != val:
                 return '-'
-            # if index.column() == 3:
-            #     return str(val.astype(int))
             if isinstance(val, (float, np.float32)) and (index.column() >= 3 and index.column() < 10):
                 return "%.2f" % val
             return str(val)
         elif role == Qt.BackgroundRole:
             adata = index.siblingAtColumn(0).data()
-            # idata = index.siblingAtColumn(11).data()
             if index.column() < 3 and adata != '-':
                 return QColor('#c0c0ff')
-            # elif index.column() == 3:
-            #     return QColor('#404040')
             elif (isinstance(val, float) or isinstance(val, np.float32)) and (index.column() >= 3 and index.column() < 11):
                 if not pd.isnull(val):
                     mod_val = int(round(val * 10, 0))
-                    return QColor(ADfModel.COLORS[mod_val])
+                    return QColor(PDfModel.COLORS[mod_val])
         elif role == Qt.ForegroundRole:
             adata = index.siblingAtColumn(0).data()
             idata = index.siblingAtColumn(10).data()
-            # if index.column() == 3:
-            #     return QColor('#ffffff')
-            # else:
             if adata != idata or adata != idata:
                 return QColor('#808080')
         elif role == DataFrameModel.ValueRole:
@@ -384,9 +358,27 @@ class PDfModel(DataFrameModel):
             return dt
         return QVariant()
 
+    def sort(self, col, order):
+        match_id = None
+        try:
+            self.layoutAboutToBeChanged.emit()
+            sel_tv = self.tv.selectionModel()
+            if sel_tv.hasSelection():
+                index = sel_tv.currentIndex()
+                match_id = self.tv.model().index(index.row(),1).data()
+            self._dataframe = self._dataframe.sort_values(by=self._dataframe.columns[col], ascending=order).reset_index(drop=True)
+            self.sort_col = col
+            self.sort_ord = order
+            self.layoutChanged.emit()
+            if match_id:
+                index = self.tv.model().match(self.tv.model().index(0, 1), Qt.DisplayRole, match_id)
+                if index:
+                    self.tv.setCurrentIndex(index[0])
+        except Exception as e:
+            print(e)
 
 class IDfModel(DataFrameModel):
-    """Subklasa dataframemodel dla tableview wyświetlającą adf."""
+    """Subklasa dataframemodel dla tableview wyświetlającą idf."""
 
     def __init__(self, df=pd.DataFrame(), tv=None, col_widths=[], col_names=[], parent=None):
         super().__init__(df, tv, col_names)
