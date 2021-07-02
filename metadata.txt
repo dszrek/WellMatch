@@ -5,7 +5,7 @@
 [general]
 name=WellMatch
 qgisMinimumVersion=3.0
-version=0.9.4
+version=0.9.5
 author=Dominik Szrek / PIG-PIB
 email=dszr@pgi.gov.pl
 description=Wyszukiwanie tożsamych otworów geologicznych w dwóch odrębnych bazach danych.
@@ -24,7 +24,12 @@ repository=https://github.com/dszrek/WellMatch.git
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=[0.9.4] - 2021-07-01
+changelog=[0.9.5] - 2021-07-02
+
+  * Zmieniono:
+ - Zmodyfikowano metodę oceny dopasowania otworów w analizie pełnej. Wykorzystany w niej algorytm k najbliższych sąsiadów (k Nearest Neighbors) liczony jest teraz nie z 5 parametrów, lecz ze średniej i mediany tych parametrów. To rozwiązanie promuje prawidłowe otwory z bazy B, jeśli nie wszystkie paramatry są dostępne (np. brak współrzędnych, danych o głębokości itp.).
+
+  [0.9.4] - 2021-07-01
 
   * Dodano:
  - Możliwość sortowania tabeli z otworami B.
