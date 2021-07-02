@@ -1029,6 +1029,42 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         #     print(tdf)
         return tdf
 
+    def estimate_bin_manual(self, tdf, add_cols=False, manual=False, trim=True, limit=10):
+        """Oszacowanie najlepszych otworów z koszyka."""
+        # Obliczenie średniej ze wszystkich parametrów (bez wartości 0):
+        tdf['Avg'] = tdf[['m_rank', 'z_rank', 'h_rank', 'r_rank', 'n_rank']].replace(0.0, np.NaN).mean(axis=1)
+        # Obliczenie mediany ze wszystkich parametrów:
+        tdf['Me'] = tdf[['m_rank', 'z_rank', 'h_rank', 'r_rank', 'n_rank']].median(axis=1)
+        # Oszacowanie optymalnej wartości k:
+        k = int(np.ceil(np.sqrt(len(tdf))) // 2 * 2 + 1)
+        # Wskazanie k najbliższych sąsiadów dla wszystkich parametrów:
+        params = ['Avg', 'Me']
+        for p in params:
+            # Nadanie wartości rankingowych od 0 do k:
+            tdf[f"k_{p}"] = tdf.groupby(by=f"{p}", sort=True).ngroup(ascending=False)
+            mask = tdf[f"k_{p}"]
+            tdf.loc[mask > k, f"k_{p}"] = k
+        # Zsumowanie rankingów parametrów:
+        tdf[f"kNN"] = tdf.iloc[:,-5:].sum(axis=1)
+        if manual:  # Wykonywane tylko przy ręcznej analizie
+            tdf = tdf.sort_values('kNN')
+            return tdf
+        # Usunięcie kolumn roboczych:
+        cols = tdf.columns.tolist()
+        tdf = tdf.drop(np.r_[cols[-3:-1]], 1)
+        # Posortowanie otworów zaczynając od najlepiej dopasowanych:
+        tdf = tdf.sort_values('kNN')
+        if trim:
+            # Usunięcie nadmiarowych otworów:
+            tdf = tdf.head(limit)
+        if add_cols:  # Wykonywane tylko przy analizie automatycznej w fazie 2
+            # Dodanie kolumn z różnicami wyników średniej i mediany:
+            tdf['Avg1'] = tdf['Avg'] - tdf['Avg'].shift(periods=-1, fill_value=1)
+            tdf['Me1'] = tdf['Me'] - tdf['Me'].shift(periods=-1, fill_value=1)
+        # with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+        #     print(tdf)
+        return tdf
+
     def param_binning(self, pdf, param):
         """Klasyfikacja i podział otworów B w zależności od odległości danego parametru od aktywnego otworu z bazy A."""
         p_dist = f"{param}_dist"
@@ -1096,7 +1132,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         cur_lvl = int(self.adf.loc[self.a_idx, 'bin'])
         limit = 10 if cur_lvl < 2 else 100
         # Wybór 10 lub 100 najbardziej dopasowanych otworów B metodą K Najbliższych Sąsiadów:
-        pdf_1 = self.estimate_bin(pdf_1, limit=limit)
+        pdf_1 = self.estimate_bin_manual(pdf_1, limit=limit)
         # Skasowanie dotychczasowych połączeń między aktualnie wybranym otworem A i otworami B:
         mask = self.abdf[self.abdf['a_idx'] == self.a_idx]
         self.abdf = self.abdf.drop(mask.index)
