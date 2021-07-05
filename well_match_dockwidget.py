@@ -571,8 +571,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.a_dedupe()
         # Wybranie otworów z bazy A, które jeszcze nie przeszły fazy 1 (w przypadku przerwania analizy):
         adf_cat = self.adf[self.adf['bin'].isna()]
-        # Nadpisanie pustych wartości parametrów z, h i r w bazie B:
+        # Nadpisanie pustych wartości parametrów x, y, z, h i r w bazie B:
         bdf = self.bdf.copy()
+        bdf[['X', 'Y']] = bdf[['X', 'Y']].fillna(-1)
         bdf[['Z', 'H']] = bdf[['Z', 'H']].fillna(99999.)
         bdf['ROK'] = bdf['ROK'].fillna(99999)
         i = 0
@@ -584,33 +585,42 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             if not self.analizing:  # Wciśnięto przycisk STOP
                 break
             tsi = tm.perf_counter()
+            pass_flag = False
             i += 1
             # Parametry wybranego otworu z bazy A:
             a_idx = index[0]
             a_z = index[5]
             a_h = index[6]
             a_r = index[7]
-            # Sprawdzenie, czy w bazie B są otwory z takimi samymi wartościami, co w otworze z bazy A:
-            params = []
-            chk_df = pd.DataFrame()
-            if not pd.isna(a_z):
-                params.append(['Z', a_z])
-            if not pd.isna(a_h):
-                params.append(['H', a_h])
-            if not pd.isna(a_r):
-                params.append(['ROK', a_r])
-            if len(params) == 2:  # Otwór z bazy A ma 2 niepuste parametry
-                chk_df = bdf[(bdf[params[0][0]] == params[0][1]) & (bdf[params[1][0]] == params[1][1])]
-            elif len(params) == 3:  # Otwór z bazy A ma 3 niepuste parametry
-                chk_df = bdf[(bdf[params[0][0]] == params[0][1]) & (bdf[params[1][0]] == params[1][1]) & (bdf[params[2][0]] == params[2][1])]
-            if len(chk_df) == 1:  # Tylko jeden otwór z bazy B ma te same wartości parametrów co otwór z bazy A (perfect match)
-                self.adf.iloc[a_idx, 9] = 0  # Przydzielenie otworowi koszyka nr 0 (analiza 1 otworu z bazy B) i wykluczenie z fazy 2
-                a_params = [index[0], index[1], index[2], index[5], index[6], index[7], index[3], index[4]]
-                a_pnt = np.array((index[3], index[4]))
-                a_params.append(a_pnt)
-                self.analize_bin_0(a_params, chk_df)  # Analiza koszyka nr 0
-            else:  # W bazie B nie ma otworów z pasującymi parametrami, albo jest ich więcej niż jeden
+            if not index[3] or index[4]:  # Otwór nie ma kompletu współrzędnych
                 self.adf.iloc[a_idx, 9] = -1  # Oznaczenie, że otwór negatywnie przeszedł fazę 1 i jest gotowy do fazy 2
+                pass_flag = True
+            # Sprawdzenie, czy w bazie B są otwory z takimi samymi wartościami, co w otworze z bazy A:
+            if not pass_flag:
+                params = []
+                chk_df = pd.DataFrame()
+                if not pd.isna(a_z):
+                    params.append(['Z', a_z])
+                if not pd.isna(a_h):
+                    params.append(['H', a_h])
+                if not pd.isna(a_r):
+                    params.append(['ROK', a_r])
+                if len(params) == 2:  # Otwór z bazy A ma 2 niepuste parametry
+                    chk_df = bdf[(bdf[params[0][0]] == params[0][1]) & (bdf[params[1][0]] == params[1][1])]
+                elif len(params) == 3:  # Otwór z bazy A ma 3 niepuste parametry
+                    chk_df = bdf[(bdf[params[0][0]] == params[0][1]) & (bdf[params[1][0]] == params[1][1]) & (bdf[params[2][0]] == params[2][1])]
+                if len(chk_df) == 1:  # Tylko jeden otwór z bazy B ma te same wartości parametrów co otwór z bazy A (perfect match)
+                    if chk_df.iloc[2, 0] == -1 or chk_df.iloc[3, 0] == -1:  # Otwór B nie ma kompletu współrzędnych
+                        self.adf.iloc[a_idx, 9] = -1  # Oznaczenie, że otwór negatywnie przeszedł fazę 1 i jest gotowy do fazy 2
+                        pass_flag = True
+                    if not pass_flag:
+                        self.adf.iloc[a_idx, 9] = 0  # Przydzielenie otworowi koszyka nr 0 (analiza 1 otworu z bazy B) i wykluczenie z fazy 2
+                        a_params = [index[0], index[1], index[2], index[5], index[6], index[7], index[3], index[4]]
+                        a_pnt = np.array((index[3], index[4])) if index[3] and index[4] else None
+                        a_params.append(a_pnt)
+                        self.analize_bin_0(a_params, chk_df)  # Analiza koszyka nr 0
+                else:  # W bazie B nie ma otworów z pasującymi parametrami, albo jest ich więcej niż jeden
+                    self.adf.iloc[a_idx, 9] = -1  # Oznaczenie, że otwór negatywnie przeszedł fazę 1 i jest gotowy do fazy 2
             tei = tm.perf_counter()
             i_time = tei - tsi
             i_times = np.append(i_times, [i_time])
@@ -867,7 +877,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         """Wstępna analiza otworu."""
         pdf = self.bdf_1  # Bierzemy pod uwagę otwory B, ktore pozostały po fazie 1
         # Obliczenie odległości od parametrów dla wszystkich otworów z B:
-        pdf['m_dist'] = compute_dist(pdf.iloc[:,2:4], self.a_pnt).astype('float32')
+        if self.a_pnt is None:
+            pdf['m_dist'] = np.nan
+        else:
+            pdf['m_dist'] = compute_dist(pdf.iloc[:,2:4], self.a_pnt).astype('float32')
         if self.a_z is None:
             pdf['z_dist'] = np.nan
         else:
@@ -889,7 +902,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         pdf_q = pdf.query('bin == 1')
         pdf_1 = self.rank_bin(pdf_q)
         # Selekcja najlepszych otworów z pierwszego koszyka:
-        pdf_1 = self.estimate_bin(pdf_1, add_cols=True)
+        pdf_1 = self.estimate_bin_manual(pdf_1, add_cols=True)
         # Zapis połączeń między otworami:
         b = pdf_1.index.tolist()
         links = [(self.a_idx, element, index, np.nan) for index, element in enumerate(b)]
@@ -904,7 +917,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
     def reverse_analize(self, pdf):
         """Odwortna analiza otworu (otwór B do połączonych otworów A)."""
         # Obliczenie odległości od parametrów dla wszystkich otworów A z pdf:
-        pdf['m_dist'] = compute_dist(pdf.iloc[:,2:4], self.a_pnt).astype('float32')
+        if self.a_pnt is None:
+            pdf['m_dist'] = np.nan
+        else:
+            pdf['m_dist'] = compute_dist(pdf.iloc[:,2:4], self.a_pnt).astype('float32')
         if self.a_z is None:
             pdf['z_dist'] = np.nan
         else:
@@ -916,7 +932,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         # Ranking parametrów otworów z bazy A:
         pdf_1 = self.rank_bin(pdf, rev=True)
         # Szacowanie jakości dopasowania otworów:
-        pdf_1 = self.estimate_bin(pdf_1, trim=False)
+        pdf_1 = self.estimate_bin_manual(pdf_1, trim=False)
         # Zapis połączeń między otworami:
         b = pdf_1.index.tolist()
         links = [(self.a_idx, element, index) for index, element in enumerate(b)]
@@ -928,9 +944,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         # Obliczenie odległości od parametrów dla wybranego otworu z bazy B:
         a_list = adf.values.tolist()[0]
         b_list = bdf.values.tolist()[0]
-        a_pnt = np.array((a_list[2], a_list[3]))
-        b_pnt = np.array((b_list[2], b_list[3]))
-        adf['m_dist'] = round(np.linalg.norm(a_pnt - b_pnt))
+        m_void = False
+        if pd.isna(a_list[2]) or pd.isna(a_list[3]) or pd.isna(b_list[2]) or pd.isna(b_list[3]):
+            adf['m_dist'] = np.nan
+            m_void = True
+        else:
+            a_pnt = np.array((a_list[2], a_list[3]))
+            b_pnt = np.array((b_list[2], b_list[3]))
+            adf['m_dist'] = round(np.linalg.norm(a_pnt - b_pnt))
         if pd.isna(a_list[4]) or pd.isna(b_list[4]):
             adf['z_dist'] = np.nan
         else:
@@ -946,7 +967,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             adf['r_dist'] = pd.to_numeric(adf['r_dist'], errors='coerce').abs().astype(float)
         # Ranking parametrów wybranego otworu:
         # Ranking m:
-        adf['m_rank'] = compute_m(adf['m_dist'].to_frame())
+        if m_void:
+            adf['m_rank'] = 0.0
+        else:
+            adf['m_rank'] = compute_m(adf['m_dist'].to_frame())
         # Ranking z, h i r:
         params = [['z', a_list[4], self.z_max], ['h', a_list[5], self.h_max], ['r', a_list[6], self.r_max]]
         for p in params:
@@ -1045,7 +1069,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             mask = tdf[f"k_{p}"]
             tdf.loc[mask > k, f"k_{p}"] = k
         # Zsumowanie rankingów parametrów:
-        tdf[f"kNN"] = tdf.iloc[:,-5:].sum(axis=1)
+        tdf[f"kNN"] = tdf.iloc[:,-2:].sum(axis=1)
         if manual:  # Wykonywane tylko przy ręcznej analizie
             tdf = tdf.sort_values('kNN')
             return tdf
@@ -1093,7 +1117,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         else:
             tdf['r_dist'] = self.r_dist(tdf.index, rev=rev)
         # Ranking m:
-        tdf['m_rank'] = compute_m(tdf['m_dist'].to_frame())
+        if self.a_pnt is None:
+            tdf['m_rank'] = 0.0
+        else:
+            tdf['m_rank'] = compute_m(tdf['m_dist'].to_frame())
         # Ranking z, h i r:
         params = [['z', self.a_z, self.z_max], ['h', self.a_h, self.h_max], ['r', self.a_r, self.r_max]]
         for p in params:
@@ -1143,6 +1170,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.abtmp.append(link)
         self.save_abdf()
         self.adf.iloc[self.a_idx, -12] = cur_lvl + 1  # Aktualizacja kolumny 'bin' w adf
+        self.pdf_mdl.sort_reset()  # Wyłączenie sortowania po kolumnie
+        self.tv_pdf.scrollToTop()
         self.cat_upd()
         te = tm.perf_counter()
         print(f"time: {round(te - ts, 2)} sek.")
@@ -1150,7 +1179,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
     def analize_selected(self, pdf):
         """Analiza otworu po wybraniu z tv_adf."""
         # Obliczenie odległości od parametrów dla wybranego otworu z bazy B:
-        pdf['m_dist'] = compute_dist(pdf.iloc[:,2:4], self.a_pnt).astype('float32')
+        if self.a_pnt is None:
+            pdf['m_dist'] = np.nan
+        else:
+            pdf['m_dist'] = compute_dist(pdf.iloc[:,2:4], self.a_pnt).astype('float32')
         if self.a_z is None:
             pdf['z_dist'] = np.nan
         else:
@@ -1168,7 +1200,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             return
         pdf = self.bdf.copy()
         # Obliczenie odległości od parametrów dla wszystkich otworów z B:
-        pdf['m_dist'] = compute_dist(pdf.iloc[:,2:4], self.a_pnt).astype('float32')
+        if self.a_pnt is None:
+            pdf['m_dist'] = np.nan
+        else:
+            pdf['m_dist'] = compute_dist(pdf.iloc[:,2:4], self.a_pnt).astype('float32')
         if self.a_z is None:
             pdf['z_dist'] = np.nan
         else:
@@ -1190,7 +1225,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         pdf_q = pdf.query('bin == 1')
         pdf_1 = self.rank_bin(pdf_q)
         # Selekcja najlepszych otworów z pierwszego koszyka:
-        pdf_1 = self.estimate_bin(pdf_1, manual=True)
+        pdf_1 = self.estimate_bin_manual(pdf_1, manual=True)
         pdf_1.to_csv(f"{self.lab_path_content.text()}{os.path.sep}{self.a_idx}.csv", index=False, encoding="cp1250", sep=";")
 
     def clear_adf(self):
@@ -1314,7 +1349,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.lab_a_r.setText("-") if self.a_r is None else self.lab_a_r.setText(str(self.a_r))
         self.a_x = self.adf[self.adf['ID'].astype(str) == a_id]['X'].values[0]
         self.a_y = self.adf[self.adf['ID'].astype(str) == a_id]['Y'].values[0]
-        self.a_pnt = np.array((self.a_x, self.a_y))
+        if not self.a_x or not self.a_y:
+            self.p_pnt = None
+        else:
+            self.a_pnt = np.array((self.a_x, self.a_y))
         self.frm_a1.setVisible(True)
         self.frm_solver_title.setVisible(True)
         self.frm_a_options.setVisible(True)
@@ -1926,7 +1964,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         al = QgsProject.instance().mapLayersByName("A_1")[0]
         pr = al.dataProvider()
         pr.truncate()
-        if self.a_idx is None:
+        if not self.a_idx or np.isnan(self.a_x) or np.isnan(self.a_y):
             return
         al.startEditing()
         ft = QgsFeature()
@@ -1946,6 +1984,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             return
         a_x = self.pck_adf['X'].values[0]
         a_y = self.pck_adf['Y'].values[0]
+        if np.isnan(a_x) or np.isnan(a_y):
+            return
         al.startEditing()
         for index in self.pck_adf.to_records():
             ft = QgsFeature()
@@ -1989,6 +2029,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             return
         bl.startEditing()
         for index in self.sel_pdf.to_records():
+            if np.isnan(index[4]) or np.isnan(index[5]):  # Brak współrzędnych punktu
+                continue
             ft = QgsFeature()
             attrs = [str(index[2]), str(index[3])]
             ft.setAttributes(attrs)
@@ -2006,6 +2048,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             return
         bl.startEditing()
         for index in self.pck_pdf.to_records():
+            if np.isnan(index[4]) or np.isnan(index[5]):  # Brak współrzędnych punktu
+                continue
             ft = QgsFeature()
             attrs = [str(index[2]), str(index[3])]
             ft.setAttributes(attrs)
@@ -2023,6 +2067,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             return
         bl.startEditing()
         for index in self.other_pdf.to_records():
+            if np.isnan(index[4]) or np.isnan(index[5]):  # Brak współrzędnych punktu
+                continue
             ft = QgsFeature()
             attrs = [str(index[2]), str(index[3])]
             ft.setAttributes(attrs)
@@ -2041,6 +2087,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         ll.startEditing()
         attrs= []
         for index in self.sel_pdf.to_records():
+            if np.isnan(index[4]) or np.isnan(index[5]) or np.isnan(self.a_x) or np.isnan(self.a_y):  # Brak współrzędnych punktów
+                continue
             ft = QgsFeature()
             attrs = [str(index[1]), int(round(float(index[10]),0))]
             ft.setAttributes(attrs)
@@ -2056,15 +2104,17 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         pr.truncate()
         if len(self.pck_pdf) == 0:
             return
-        ll.startEditing()
         attrs= []
         a_x = self.a_x
         a_y = self.a_y
         b_x = self.pck_pdf['X'].values[0]
         b_y = self.pck_pdf['Y'].values[0]
+        if np.isnan(a_x) or np.isnan(a_y) or np.isnan(b_x) or np.isnan(b_y):  # Brak współrzędnych punktów
+            return
         a_pnt = np.array((a_x, a_y))
         b_pnt = np.array((b_x, b_y))
         dist = round(np.linalg.norm(a_pnt - b_pnt))
+        ll.startEditing()
         ft = QgsFeature()
         for index in self.sel_pdf.to_records():
             attrs = [str(index[1]), int(round(float(dist),0))]
@@ -2081,15 +2131,17 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         pr.truncate()
         if len(self.pck_adf) == 0:
             return
-        ll.startEditing()
         attrs= []
         a_x = self.sel_pdf['X'].values[0]
         a_y = self.sel_pdf['Y'].values[0]
         b_x = self.pck_adf['X'].values[0]
         b_y = self.pck_adf['Y'].values[0]
+        if np.isnan(a_x) or np.isnan(a_y) or np.isnan(b_x) or np.isnan(b_y):  # Brak współrzędnych punktów
+            return
         a_pnt = np.array((a_x, a_y))
         b_pnt = np.array((b_x, b_y))
         dist = round(np.linalg.norm(a_pnt - b_pnt))
+        ll.startEditing()
         ft = QgsFeature()
         for index in self.sel_pdf.to_records():
             attrs = [str(index[1]), int(round(float(dist),0))]
@@ -2101,7 +2153,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def canvas_zoom(self):
         """Przybliżenie mapy do wyświetlonych obiektów."""
-        if self.a_idx is None:  # Na mapie nic się nie wyświetla
+        if not self.a_idx:  # Na mapie nic się nie wyświetla
             self.canvas.setExtent(init_extent())
             self.canvas.refresh()
             return
@@ -2121,6 +2173,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                 xy = QgsPointXY(pnt)
                 l_x.append(xy.x())
                 l_y.append(xy.y())
+        if len(l_x) == 0:  # Na mapie nic się nie wyświetla
+            self.canvas.setExtent(init_extent())
+            self.canvas.refresh()
+            return
         p_x = [min(l_x), max(l_x)]
         p_y = [min(l_y), max(l_y)]
         for p in p_x:
@@ -2179,6 +2235,8 @@ def apply_numba_dist(x, y, a_pnt):
 
 @numba.njit
 def numba_dist(x, y, a_pnt):
+    if np.isnan(x) or np.isnan(y):
+        return np.nan
     b_pnt = np.array((x, y))
     return np.sqrt(np.sum(((a_pnt - b_pnt) ** 2)))
 
@@ -2231,7 +2289,9 @@ def apply_numba_m(param):
 
 @numba.njit
 def numba_m(val):
-    if val == 0.0:
+    if np.isnan(val):
+        return 0.0
+    elif val == 0.0:
         return 1.0
     elif val <= 100.0:
         return 1 - (val/1000)

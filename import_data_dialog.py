@@ -203,8 +203,8 @@ class ImportDataDialog(QtWidgets.QDialog, FORM_CLASS):  # type: ignore
         idx_nv = idx_nv.append(pd.DataFrame(self.idnu.rename_axis('idx').reset_index()['idx']), ignore_index=True)
         self.idnu = self.idnu.reset_index(drop=True)
         self.idnu_cnt = len(self.idnu)
-        bad_x = self.all['X'].isna() | (self.all['X'] < 170000.0) | (self.all['X'] > 870000.0)
-        bad_y = self.all['Y'].isna() | (self.all['Y'] < 140000.0) | (self.all['Y'] > 890000.0)
+        bad_x = ((self.all['X'] < 170000.0) | (self.all['X'] > 870000.0)) & ~self.all['X'].isna()
+        bad_y = ((self.all['Y'] < 170000.0) | (self.all['Y'] > 870000.0)) & ~self.all['Y'].isna()
         self.xynv = self.all[ bad_x | bad_y]
         idx_nv = idx_nv.append(pd.DataFrame(self.xynv.rename_axis('idx').reset_index()['idx']), ignore_index=True)
         self.xynv = self.xynv.reset_index(drop=True)
