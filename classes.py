@@ -119,8 +119,9 @@ class DataFrameModel(QAbstractTableModel):
         self.tv.setModel(self)
         self.tv.selectionModel().selectionChanged.connect(lambda: self.layoutChanged.emit())
         self.tv.horizontalHeader().setSortIndicatorShown(False)
+        self.tv.horizontalHeader().setSortIndicator(-1, 0)
         self.sort_col = -1
-        self.sort_ord = 1
+        self.sort_ord = 0
 
     def col_names(self, df, col_names):
         """Nadanie nazw kolumn tableview'u."""
@@ -129,8 +130,9 @@ class DataFrameModel(QAbstractTableModel):
 
     def sort_reset(self):
         """Wyłącza sortowanie po kolumnie."""
+        self.tv.horizontalHeader().setSortIndicator(-1, 0)
         self.sort_col = -1
-        self.sort_ord = 1
+        self.sort_ord = 0
 
     def setDataFrame(self, dataframe):
         self.beginResetModel()
@@ -155,8 +157,6 @@ class DataFrameModel(QAbstractTableModel):
             else:
                 return str(self._dataframe.index[section])
         return QVariant()
-        if role == Qt.InitialSortOrderRole:
-            return QVariant.fromValue(Qt.AscendingOrder)
 
     def rowCount(self, parent=QModelIndex()):
         if parent.isValid():
