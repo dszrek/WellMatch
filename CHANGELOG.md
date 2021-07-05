@@ -1,5 +1,13 @@
 # Changelog (dziennik zmian):
 
+## [0.9.6] - 2021-07-05
+
+### Dodano
+- Możliwość importu i analizy otworów bez współrzędnych XY.
+
+### Poprawiono
+- Sortowanie po pierwszym kliknięciu na nagłówku kolumny w tabelach A lub B jest ustawione na malejące we wszystkich przypadkach.
+
 ## [0.9.5] - 2021-07-02
 
 ### Zmieniono
