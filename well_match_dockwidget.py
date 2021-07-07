@@ -41,7 +41,7 @@ from qgis.PyQt.QtCore import Qt, pyqtSignal, QEvent, QVariant, QModelIndex, QIte
 from qgis.core import QgsApplication, QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsRectangle
 from qgis.utils import iface
 
-from .classes import DataFrameModel, ADfModel, PDfModel, run_in_main_thread, CustomButton, AddCLoc
+from .classes import DataFrameModel, ADfModel, PDfModel, run_in_main_thread, CustomButton, MultiStateButton, AddCLoc
 from .main import LayerManager, init_extent, check_files, df_load
 
 UI_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'ui' + os.path.sep
@@ -91,7 +91,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.btn_run.pressed.connect(self.analize_run)
         self.btn_c_add = CustomButton(self.frm_loc, name="c_add", size=36, checkable=True)
         self.btn_c_del = CustomButton(self.frm_loc, name="c_del", size=36, checkable=False, visible=False)
-        self.btn_loc = CustomButton(self.frm_loc, name="xy", size=55, hsize=36, checkable=True)
+        self.btn_loc = MultiStateButton(self.frm_loc, name="xy", size=55, hsize=36, states=[0, 1, 3])
         hlay = QHBoxLayout()
         hlay.setContentsMargins(0, 0, 0, 0)
         hlay.setSpacing(4)
@@ -122,6 +122,22 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.frm_b1.setVisible(False)
         self.frm_b2.setVisible(False)
         self.frm_b3.setVisible(False)
+
+        # Parametry:
+        self.a_idx = None
+        self.a_x = float()
+        self.a_y = float()
+        self.a_z = float()
+        self.a_h = float()
+        self.a_r = int()
+        self.a_pnt = None
+        self.b_pnt = False
+        self.pdf_sel = False
+        self.a2_idx = int()
+        self.a_id = None
+        self.sel_case = 0
+        self.loc = 0
+
         # Dataframe'y:
         self.adf = pd.DataFrame()
         self.bdf = pd.DataFrame()
@@ -145,20 +161,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
         self.abtmp = []
         self.batmp = []
-
-        # Parametry:
-        self.a_idx = None
-        self.a_x = float()
-        self.a_y = float()
-        self.a_z = float()
-        self.a_h = float()
-        self.a_r = int()
-        self.a_pnt = None
-        self.pdf_sel = False
-        self.a2_idx = int()
-        self.a_id = None
-        self.sel_case = 0
-        self.loc = 0
 
         self._status = run_in_main_thread(self.status)
         self._pbar = run_in_main_thread(self.pbar.setValue)
