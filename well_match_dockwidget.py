@@ -2221,7 +2221,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         a2 = QgsProject.instance().mapLayersByName("A_2")[0]
         b1 = QgsProject.instance().mapLayersByName("B_1")[0]
         b2 = QgsProject.instance().mapLayersByName("B_2")[0]
-        lyrs = [a1, a2, b1, b2]
+        c = QgsProject.instance().mapLayersByName("C")[0]
+        lyrs = [a1, a2, b1, b2, c]
         for l in lyrs:
             if l.featureCount() == 1:
                 f = l.getFeatures()
