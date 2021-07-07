@@ -228,10 +228,33 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             else:
                 self.btn_c_add.setChecked(False)
                 iface.actionPan().trigger()
+        if attr == "loc":
+            if val == 2:
+                self.btn_loc.setEnabled(False)
+                self.btn_c_add.setVisible(False)
+                self.btn_c_del.setVisible(True)
+            else:
+                self.btn_c_add.setVisible(True)
+                self.btn_c_del.setVisible(False)
+                self.btn_loc.setEnabled(True)
+                self.btn_loc.state = val
         if attr == "pdf_sel":
             self.btn_anal.setEnabled(val)
             self.btn_join.setEnabled(val)
         if attr == "sel_case":
+            if val == 1:  # Jest zaznaczony otwór B obecnie połączony z otworem A
+                self.loc_establish()
+                if len(self.sel_pdf) > 0:
+                    b_x = self.sel_pdf['X'].values[0]
+                    b_y = self.sel_pdf['Y'].values[0]
+                    if np.isnan(b_x) or np.isnan(b_y):
+                        self.btn_loc.list_del(1)
+                    else:
+                        self.a_pnt = np.array((self.a_x, self.a_y))
+                        self.btn_loc.list_add(1)
+                else:
+                    if self.a_idx:
+                        self.btn_loc.list_del(1)
             self.btn_link_change.setEnabled(False) if val < 2 else self.btn_link_change.setEnabled(True)
         if attr == "cat":
             self.cat_changed.emit(val)
@@ -265,6 +288,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         """Zaznacza pierwszy otwór na liście tv_adf."""
         index = self.tv_adf.model().index(0, 0)
         self.tv_adf.setCurrentIndex(index)
+        self.tv_adf.scrollToTop()
         self.canvas_update()
 
     def adf_sel_active(self):
@@ -275,6 +299,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             return
         index = self.tv_adf.model().match(self.tv_adf.model().index(0, 0), Qt.DisplayRole, a_id)
         if index:
+            self.tv_pdf.scrollTo(index[0])
             self.tv_adf.setCurrentIndex(index[0])
             self.canvas_update()
 
@@ -400,6 +425,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                 # Tryb kasowania wiersza:
                 self.cdf = self.cdf.drop(pck_cdf.index)
         self.save_cdf()
+
+    def loc_establish(self):
+        """Ustala jaki stan powinien mieć przycisk loc i w razie potrzeby zmienia wartość loc dla otworu A."""
+        if not self.loc in self.btn_loc.states:
+            self.btn_loc.state_reset()
+            self.loc_change()
+        else:
+            self.btn_loc.state = self.loc
 
     def save_adf(self):
         """Zapisanie aktualnej wersji adf na dysku."""
@@ -947,12 +980,23 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         a_list = adf.values.tolist()[0]
         b_list = bdf.values.tolist()[0]
         m_void = False
-        if pd.isna(a_list[2]) or pd.isna(a_list[3]) or pd.isna(b_list[2]) or pd.isna(b_list[3]):
-            adf['m_dist'] = np.nan
+        a_none = False
+        b_none = False
+        if pd.isna(a_list[2]) or pd.isna(a_list[3]):
+            a_pnt = None
+            a_none = True
             m_void = True
         else:
             a_pnt = np.array((a_list[2], a_list[3]))
+        if pd.isna(b_list[2]) or pd.isna(b_list[3]):
+            b_pnt = None
+            b_none = True
+            m_void = True
+        else:
             b_pnt = np.array((b_list[2], b_list[3]))
+        if m_void:
+            adf['m_dist'] = np.nan
+        else:
             adf['m_dist'] = round(np.linalg.norm(a_pnt - b_pnt))
         if pd.isna(a_list[4]) or pd.isna(b_list[4]):
             adf['z_dist'] = np.nan
@@ -1009,6 +1053,13 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                 adf['cat'] = 'a'
             elif pred == 2:  # Predykcja kategorii 'połączone'
                 adf['cat'] = 'p'
+                # Ustalenie watrości loc:
+                if not a_none:
+                    adf['loc'] = 0
+                elif a_none and not b_none:
+                    adf['loc'] = 1
+                elif a_none and b_none:
+                    adf['loc'] = 3
         # Zapisanie w bdf id otworu z bazy A:
         if pred > 0:  # Blokada zapisu dla wstrzymanych otworów:
             act_bdf = self.bdf[self.bdf.index == bdf.index.values[0]]
@@ -1272,6 +1323,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.pck_adf = pd.DataFrame(columns=self.pck_adf.columns)
         self.other_pdf = pd.DataFrame(columns=self.other_pdf.columns)
         self.pdf_sel = False
+        self.b_pnt = False
         try:
             self.pdf_mdl.setDataFrame(self.p_col(self.pdf))
         except Exception as err:
@@ -1309,16 +1361,15 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         else:
             a_id = index.sibling(index.row(), 0).data()
         try:
-            self.a_idx = self.adf.index[self.adf['ID'].astype(str) == a_id][0]
+            self.a_idx = self.adf.index[self.adf['ID'].astype(str) == str(a_id)][0]
         except Exception as err:
-            print(f"adf_sel_change: {err}")
             self.a_idx = None
             self.clear_adf()
             return
         # Stworzenie ramki informacyjnej dla konsoli pythona:
         id_long = len(str(a_id)) if a_id else 4
         idx_long = len(str(self.a_idx)) if self.a_idx else 4
-        frame_long = id_long + 5 if id_long > idx_long else idx_long + 5
+        frame_long = id_long + 5 if id_long >= idx_long else idx_long + 5
         print(f"╔{'═' * (frame_long + 4)}╗")
         print(f"║ a_idx: {str(self.a_idx)}{' ' * (frame_long - (idx_long + 4))}║")
         print(f"║  a_id: {str(a_id)}{' ' * (frame_long - (id_long + 4))}║")
@@ -1349,12 +1400,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.lab_a_z.setText("-") if self.a_z is None else self.lab_a_z.setText(self.float_format(self.a_z))
         self.lab_a_h.setText("-") if self.a_h is None else self.lab_a_h.setText(self.float_format(self.a_h))
         self.lab_a_r.setText("-") if self.a_r is None else self.lab_a_r.setText(str(self.a_r))
-        self.a_x = self.adf[self.adf['ID'].astype(str) == a_id]['X'].values[0]
-        self.a_y = self.adf[self.adf['ID'].astype(str) == a_id]['Y'].values[0]
-        if not self.a_x or not self.a_y:
-            self.p_pnt = None
+        self.a_x = self.adf[self.adf['ID'].astype(str) == str(a_id)]['X'].values[0]
+        self.a_y = self.adf[self.adf['ID'].astype(str) == str(a_id)]['Y'].values[0]
+        if np.isnan(self.a_x) or np.isnan(self.a_y):
+            self.a_pnt = None
+            self.btn_loc.list_del(0)
         else:
             self.a_pnt = np.array((self.a_x, self.a_y))
+            self.btn_loc.list_add(0)
         self.frm_a1.setVisible(True)
         self.frm_solver_title.setVisible(True)
         self.frm_a_options.setVisible(True)
@@ -1364,16 +1417,16 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.btn_lvl.setText("PEŁNA ANALIZA [10]") if cur_lvl <= 1 else self.btn_lvl.setText("PEŁNA ANALIZA [100]")
         self.btn_lvl.setEnabled(True) if cur_lvl < 3 else self.btn_lvl.setEnabled(False)
         self.loc = int(self.adf.loc[self.a_idx, 'loc'])
-        if self.loc == 2:
-            self.btn_loc.setChecked(False)
-            self.btn_loc.setEnabled(False)
-            self.btn_c_add.setVisible(False)
-            self.btn_c_del.setVisible(True)
-        else:
-            self.btn_c_add.setVisible(True)
-            self.btn_c_del.setVisible(False)
-            self.btn_loc.setEnabled(True)
-            self.btn_loc.setChecked(False) if self.loc == 0 else self.btn_loc.setChecked(True)
+        # if self.loc == 2:
+        #     self.btn_loc.setEnabled(False)
+        #     self.btn_c_add.setVisible(False)
+        #     self.btn_c_del.setVisible(True)
+        # else:
+        #     self.btn_c_add.setVisible(True)
+        #     self.btn_c_del.setVisible(False)
+        #     self.btn_loc.setEnabled(True)
+        #     self.btn_loc.setChecked(False)
+        #     self.btn_loc.state = 2 if self.loc == 3 else self.loc
         self.pdf_create()
 
     def pdf_sel_change(self):
@@ -1388,7 +1441,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.pdf_sel = True
         s_id = index.sibling(index.row(), 1).data()  # Referencja do b_id zaznaczonego otworu
         # Przekazanie do oddzielnego dataframe'u danych zaznaczonego otworu:
-        mask = self.pdf['ID'].astype(str) == s_id
+        mask = self.pdf['ID'].astype(str) == str(s_id)
         self.sel_pdf = self.pdf[mask].reset_index(drop=True)
         # Przekazanie do oddzielnego dataframe'u danych wszystkich otworów z pdf z wyłączeniem zaznaczonego otworu:
         self.other_pdf = self.pdf[~mask].reset_index(drop=True)
@@ -1678,8 +1731,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.adf.update(act_adf)
         self.save_adf()
         self.save_bdf()
-        self.a_id = self.adf.loc[self.a_idx, 'ID']
+        self.loc_establish()
         self.sel_change_void = True
+        self.a_id = self.adf.loc[self.a_idx, 'ID']
         self.cat_upd()
 
     def export_joint(self):
@@ -1836,9 +1890,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         return df
 
     def loc_change(self):
-        """Zmiana w adf wartości 'loc' dla otworu A (0 - prawidłowe są wpółrzędne XY z otworu A, 1 - prawidłowe są z otworu B, 2 - lokalizacja C)."""
+        """Zmiana w adf wartości 'loc' dla otworu A (0 - prawidłowe są wpółrzędne XY z otworu A, 1 - prawidłowe są z otworu B, 2 - lokalizacja C, 3 - nie ustalono prawidłowej lokalizacji)."""
         if self.btn_loc.isEnabled():
-            self.loc = 1 if self.btn_loc.isChecked() else 0
+            self.loc = self.btn_loc.state
         else:
             self.loc = 2
         mask = self.adf.index == self.a_idx
@@ -1863,7 +1917,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         df['H'] = df['H'].astype('float32')
         df['ROK'] = df['ROK'].astype('Int64')
         df['loc'] = df['loc'].astype('category')
-        df['loc'].cat.set_categories(range(0, 3), inplace=True)
+        df['loc'].cat.set_categories(range(0, 4), inplace=True)
         df['loc'] = df['loc'].fillna(0)
         df['cat'] = df['cat'].astype('category')
         df['cat'].cat.set_categories(['o', 'p', 'a', 'w', 'u'], inplace=True)
@@ -2003,14 +2057,16 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         c = QgsProject.instance().mapLayersByName("C")[0]
         pr = c.dataProvider()
         pr.truncate()
-        if self.loc < 2:
+        if self.loc != 2:
             # Otwór nie ma lokalizacji C
             c.triggerRepaint()
             return
         pck_cdf = self.cdf[self.cdf['a_idx'] == self.a_idx]
         if len(pck_cdf) == 0:
             # Otwór ma lokalizację C, ale nie ma współrzędnych tej lokalizacji
-            QMessageBox.critical(None, "WellMatch", f"Otwór ma ustaloną lokalizację typu C, ale brak jest informacji o współrzędnych tej lokalizacji. Ustalono domyślną lokalizację typu A.")
+            QMessageBox.critical(None, "WellMatch", f"Otwór ma ustaloną lokalizację typu C, ale brak jest informacji o współrzędnych tej lokalizacji. Ustalono domyślną lokalizację.")
+            self.btn_loc.setEnabled(True)
+            self.loc_establish()
             c.triggerRepaint()
             return
         c_x = pck_cdf['X'].values[0]
