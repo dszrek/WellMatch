@@ -453,6 +453,86 @@ class CustomButton(QToolButton):
         self.setIcon(icon)
 
 
+class MultiStateButton(QToolButton):
+    """Przycisk z większą niż 2 ilością stanów."""
+    def __init__(self, *args, size=25, hsize=0, name="", icon="", states=[0, 1, 2], visible=True, enabled=True, tooltip=""):
+        super().__init__(*args)
+        self.name = icon if len(icon) > 0 else name
+        self.shown = visible  # Dubluje setVisible() - .isVisible() może zależeć od rodzica
+        self.setVisible(visible)
+        self.setEnabled(enabled)
+        self.setCheckable(False)
+        self.setToolTip(tooltip)
+        self.size = size
+        self.hsize = hsize
+        self.states = states
+        self.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.setAutoRaise(True)
+        self.setStyleSheet("QToolButton {border: none}")
+        self.setMouseTracking(True)
+
+    def __setattr__(self, attr, val):
+        """Przechwycenie zmiany atrybutu."""
+        super().__setattr__(attr, val)
+        if attr == "state":
+            if not val in self.states:  # Stanu nie ma na liście
+                self.state = self.states[0]
+                return
+            self.set_icon()
+        if attr == "states":
+            if len(val) == 0:
+                self.states = [0]
+                return
+            self.state = val[0]
+
+    def nextCheckState(self):
+        """Ustawia następną wartość self.state po kliknięciu na przycisk."""
+        try:
+            pos = self.states.index(self.state)
+        except Exception as err:
+            print(f"MultiStateButton: {err}")
+            pos = 0
+            self.state = self.states[pos]
+        if pos < len(self.states) - 1:
+            self.state = self.states[pos + 1]
+        else:
+            self.state = self.states[0]
+
+    def set_icon(self):
+        """Ładowanie ikon do guzika."""
+        if self.hsize == 0:
+            wsize, hsize = self.size, self.size
+        else:
+            wsize = self.size
+            hsize = self.hsize
+        self.setFixedSize(wsize, hsize)
+        self.setIconSize(QSize(wsize, hsize))
+        icon = QIcon()
+        icon.addFile(f"{ICON_PATH}{self.name}_{self.state}.png", size=QSize(wsize, hsize), mode=QIcon.Normal, state=QIcon.Off)
+        icon.addFile(f"{ICON_PATH}{self.name}_{self.state}_act.png", size=QSize(wsize, hsize), mode=QIcon.Active, state=QIcon.Off)
+        icon.addFile(f"{ICON_PATH}{self.name}_{self.state}.png", size=QSize(wsize, hsize), mode=QIcon.Selected, state=QIcon.Off)
+        icon.addFile(f"{ICON_PATH}{self.name}_dis.png", size=QSize(wsize, hsize), mode=QIcon.Disabled, state=QIcon.Off)
+        self.setIcon(icon)
+
+    def list_add(self, val):
+        """Dodaje wartość (jeśli jeszcze jej nie ma) do listy dozwolonych stanów przycisku."""
+        if val in self.states:  # Stan jest już na liście
+            return
+        temp = self.states
+        temp.append(val)
+        self.states = sorted(temp)
+
+    def list_del(self, val):
+        """Kasuje wartość (jeśli jeszcze jej nie ma) z listy dozwolonych stanów przycisku."""
+        if not val in self.states:  # Stanu już nie ma na liście
+            return
+        self.states.remove(val)
+
+    def state_reset(self):
+        """Ustawienie stanu, który występuje pierwszy na liście dostępnych."""
+        self.state = self.states[0]
+
+
 class AddCLoc(QgsMapTool):
     """Maptool do pobierania współrzędnych lokalizacji C."""
     c_added = pyqtSignal(object)
