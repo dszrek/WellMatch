@@ -1,5 +1,18 @@
 # Changelog (dziennik zmian):
 
+## [0.9.7] - 2021-07-07
+
+### Dodano
+- Umożliwienie importu i analizy otworów bez współrzędnych XY wymusiło stworzenie funkcji odpowiedzialnej za automatyczny dobór dostępnych kategorii lokalizacji, np. jeżeli brak jest współrzędnych otworu A, to nie można ustawić lokalizacji typu "A".
+- Wprowadzono nową kategorię lokalizacji - "?", która oznacza brak możliwości ustalenia prawidłowej lokalizacji otworu.
+
+### Zmieniono
+- Punkt "C" jest uwzględniany przy ustalaniu zakresu widoku mapy.
+
+### Poprawiono
+- Po wczytaniu uwcześnie zapisanego pliku projektowego i uruchomieniu wtyczki, etykiety otworów są już wyświetlane na mapie.
+- Po wciśnięciu przycisku "USTAL POŁĄCZENIE" (zatwierdzenie zastąpienia prawidłowego otworu B bez modyfikacji kategorii otworu A) nie dochodzi do zmiany aktualnie zaznaczonego otworu A.
+
 ## [0.9.6] - 2021-07-05
 
 ### Dodano
