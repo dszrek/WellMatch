@@ -1755,15 +1755,15 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         exp_df = exp_df.merge(exp_cdf, on='a_idx', how='left')
         exp_df['loc'] = pd.to_numeric(exp_df['loc'], downcast='integer')
         # Dodanie kolumn ze współrzędnymi i wypełnienie danymi w zależności od wartości 'loc':
-        conditions = [exp_df['loc'] == 0, exp_df['loc'] == 1, exp_df['loc'] == 2]
-        choices_x = [exp_df['X_A'], exp_df['X_B'], exp_df['X_C']]
-        choices_y = [exp_df['Y_A'], exp_df['Y_B'], exp_df['Y_C']]
+        conditions = [exp_df['loc'] == 0, exp_df['loc'] == 1, exp_df['loc'] == 2, exp_df['loc'] == 3]
+        choices_x = [exp_df['X_A'], exp_df['X_B'], exp_df['X_C'], np.nan]
+        choices_y = [exp_df['Y_A'], exp_df['Y_B'], exp_df['Y_C'], np.nan]
         exp_df['X'] = np.select(conditions, choices_x, default=exp_df['X_A'])
         exp_df['Y'] = np.select(conditions, choices_y, default=exp_df['Y_A'])
         # Usunięcie niepotrzebnych kolumn:
         exp_df = exp_df.drop(columns=['X_A', 'Y_A', 'X_B', 'Y_B', 'X_C', 'Y_C', 'a_idx'])
         exp_df = exp_df[['ID_A', 'ID_B', 'X', 'Y', 'loc']]
-        exp_df.columns = ['ID_A', 'ID_B', 'X', 'Y', '0=A 1=B 2=C']
+        exp_df.columns = ['ID_A', 'ID_B', 'X', 'Y', '0=A 1=B 2=C, 3=?']
         # with pd.option_context('display.max_rows', None, 'display.max_columns', None): 
         #     print(exp_df)
         path = self.lab_path_content.text()
