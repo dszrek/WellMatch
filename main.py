@@ -44,15 +44,15 @@ class LayerManager:
             {'name': 'WellMatch', 'level': 1, 'layers': ['A_1', 'A_2', 'B_1', 'B_2', 'C', 'A1B1', 'A1B2', 'A2B1', 'B_INNE']}
             ]
         self.lyrs = [
-            {"source": "memory", "name": "A_1", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "a1.qml"},
-            {"source": "memory", "name": "A_2", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "a2.qml"},
-            {"source": "memory", "name": "B_1", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "b1.qml"},
-            {"source": "memory", "name": "B_2", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "b2.qml"},
-            {"source": "memory", "name": "C", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "c.qml"},
-            {"source": "memory", "name": "A1B1", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string", "attrib": [QgsField('m_dist', QVariant.Int)], "style": "a1b1.qml"},
-            {"source": "memory", "name": "A1B2", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string", "attrib": [QgsField('m_dist', QVariant.Int)], "style": "a1b2.qml"},
-            {"source": "memory", "name": "A2B1", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string", "attrib": [QgsField('m_dist', QVariant.Int)], "style": "a2b1.qml"},
-            {"source": "memory", "name": "B_INNE", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String), QgsField('name', QVariant.String)], "style": "b_inne.qml"}
+            {"source": "memory", "name": "A_1", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "a1.qml"},
+            {"source": "memory", "name": "A_2", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "a2.qml"},
+            {"source": "memory", "name": "B_1", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "b1.qml"},
+            {"source": "memory", "name": "B_2", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "b2.qml"},
+            {"source": "memory", "name": "C", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "c.qml"},
+            {"source": "memory", "name": "A1B1", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string", "attrib": [QgsField('m_dist', QVariant.Int, "int")], "style": "a1b1.qml"},
+            {"source": "memory", "name": "A1B2", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string", "attrib": [QgsField('m_dist', QVariant.Int, "int")], "style": "a1b2.qml"},
+            {"source": "memory", "name": "A2B1", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string", "attrib": [QgsField('m_dist', QVariant.Int, "int")], "style": "a2b1.qml"},
+            {"source": "memory", "name": "B_INNE", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "b_inne.qml"}
             ]
         self.lyr_cnt = len(self.lyrs)
         self.lyrs_names = [i for s in [[v for k, v in d.items() if k == "name"] for d in self.lyrs] for i in s]
