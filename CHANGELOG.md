@@ -1,5 +1,13 @@
 # Changelog (dziennik zmian):
 
+## [0.9.8] - 2022-11-28
+
+### Zmieniono
+- Zmodyfikowano działanie funkcji sprawdzającej, czy niezbędne dla działania wtyczki biblioteki python są zainstalowane. W razie stwierdzenia braku wymaganej biblioteki (bądź zainstalowanej zbyt "starej" wersji), jest ona instalowana z pliku .whl dołączonego do dystrybucji wtyczki (folder ".\libs"). Konieczność instalowania bibliotek z dołączonych plików wynika z blokowania przez proxy sieci PIG-PIB preferowanego instalatora sieciowego "pip".
+
+### Poprawiono
+- Zapewniono zgodność działania wtyczki na wersjach QGIS opartych o python 3.9 (wersje QGIS nowsze niż 3.16.6).
+
 ## [0.9.7] - 2021-07-07
 
 ### Dodano
