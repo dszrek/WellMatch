@@ -4,6 +4,8 @@ __pycache__/
 help/
 scripts/
 test/
+libs/
+libs_all/
 pyqgis.cmd
 pylintrc
 bin.py
