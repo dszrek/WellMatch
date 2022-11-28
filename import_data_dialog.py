@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 import os
-import pyarrow
+try:
+    import pyarrow
+except:
+    import fastparquet
 import pandas as pd
 import numpy as np
 

@@ -24,7 +24,10 @@
 
 import os
 import shutil
-import pyarrow
+try:
+    import pyarrow
+except:
+    import fastparquet
 import numba
 import pandas as pd
 import numpy as np
