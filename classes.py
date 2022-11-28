@@ -95,7 +95,7 @@ class PDfDelegate(QStyledItemDelegate):
             painter.setPen(QPen(QColor(255,0,0), 2))
             painter.drawLine(rect.topLeft(), rect.topRight())
             painter.drawLine(rect.bottomLeft(), rect.bottomRight())
-        
+
     def initStyleOption(self, option, index):
         super().initStyleOption(option, index)
         selected = option.state & QStyle.State_Selected
