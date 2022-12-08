@@ -1023,7 +1023,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         # Ranking z, h i r:
         params = [['z', a_list[4], self.z_max], ['h', a_list[5], self.h_max], ['r', a_list[6], self.r_max]]
         for p in params:
-            adf[f"{p[0]}_rank"] = self.rank_param(adf[f"{p[0]}_dist"], p[1], p[2])
+            adf[f"{p[0]}_rank"] = 0.0 if not p[2] else self.rank_param(adf[f"{p[0]}_dist"], p[1], p[2])
         # Ranking n:
         if pd.isna(a_list[1]) or pd.isna(b_list[1]):
             adf['n_rank'] = 0.0
@@ -1153,6 +1153,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         # Utworzenie serii z liczbami porządkowymi kolejnych unikalnych wartości odległości parametru:
         pdf[p_grp] = pdf.groupby(by=p_dist, sort=True).ngroup()
         p_max = pdf[p_grp].max()  # Wartość maksymalna odległości od parametru
+        if pd.isna(p_max):
+            # Cała kolumna złożona jest z pustych wartości, zwracamy jedną kategorię
+            return pd.Series(1, index=pdf.index, dtype='category')
         mask = pd.isna(pdf[p_dist])  # Wyfiltrowanie NaN'ów w serii p_dist
         # Nadanie NaN'om ostatniej liczby porządkowej:
         if mask.sum() > 0:
@@ -1180,7 +1183,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         # Ranking z, h i r:
         params = [['z', self.a_z, self.z_max], ['h', self.a_h, self.h_max], ['r', self.a_r, self.r_max]]
         for p in params:
-            tdf[f"{p[0]}_rank"] = self.rank_param(tdf[f"{p[0]}_dist"], p[1], p[2])
+            tdf[f"{p[0]}_rank"] = 0.0 if not p[2] else self.rank_param(tdf[f"{p[0]}_dist"], p[1], p[2])
         # Ranking n:
         func = np.vectorize(self.rank_n)
         tdf['n_rank'] = func(tdf['NAZWA'])
@@ -1860,6 +1863,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def calc_max(self, adf, bdf, positives):
         """Oblicza maksymalną odległość dla podanego parametru."""
+        if adf.isnull().all() or bdf.isnull().all():
+            return None
         if positives:
             dists = [abs(abs(adf.min()) - abs(bdf.min())), abs(abs(adf.min()) - abs(bdf.max())), abs(abs(adf.max()) - abs(bdf.min())), abs(abs(adf.max()) - abs(bdf.max()))]
         else:
