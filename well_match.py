@@ -31,9 +31,10 @@ from .resources import *
 
 import sys
 import os.path
+import subprocess
 import pkg_resources
 
-LIBS_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'libs' + os.path.sep
+LIBS_PATH = 'http://dszrek.github.io/libs/'
 
 class WellMatch:
     """QGIS Plugin Implementation."""
@@ -255,7 +256,8 @@ def external_libs_exists():
     if missing_libs == -1:
         return False
     if len(missing_libs) > 0:
-        m_text = f'Brak zainstalowanych zewnętrznych bibliotek: {[x[0] for x in missing_libs]}. Są one niezbędne do działania wtyczki WellMatch. Czy chcesz je teraz zainstalować?'
+        lib_names = ", ".join([x[0] for x in missing_libs])
+        m_text = f'Brak zainstalowanych zewnętrznych bibliotek:\n{lib_names}.\nSą one niezbędne do działania wtyczki WellMatch. Czy chcesz je teraz zainstalować?'
         reply = QMessageBox.question(None, "WellMatch", m_text, QMessageBox.Yes, QMessageBox.No)
         if reply == QMessageBox.No:
             return False
@@ -272,101 +274,101 @@ def detect_missing_libs():
     if ver_minor == 7:
         ext_libs = [
             # Wyłączono paczki związane ze sklearn2
-            ['numpy', 'numpy-1.21.6-cp37-cp37m-win_amd64.whl'],
-            ['six', 'six-1.16.0-py2.py3-none-any.whl'],
-            ['python-dateutil', 'python_dateutil-2.8.2-py2.py3-none-any.whl'],
-            ['pytz', 'pytz-2022.6-py2.py3-none-any.whl'],
-            ['pandas', 'pandas-1.0.5-cp37-cp37m-win_amd64.whl'],
-            ['pyparsing', 'pyparsing-3.0.9-py3-none-any.whl'],
-            ['packaging', 'packaging-21.3-py3-none-any.whl'],
-            # ['patsy', 'patsy-0.5.3-py2.py3-none-any.whl'],
-            # ['scipy', 'scipy-1.7.3-cp37-cp37m-win_amd64.whl'],
-            # ['statsmodels', 'statsmodels-0.13.5-cp37-cp37m-win_amd64.whl'],
-            # ['pydot', 'pydot-1.4.2-py2.py3-none-any.whl'],
-            ['joblib', 'joblib-1.2.0-py3-none-any.whl'],
-            # ['threadpoolctl', 'threadpoolctl-3.1.0-py3-none-any.whl'],
-            # ['scikit-learn', 'scikit_learn-1.0-cp37-cp37m-win_amd64.whl'],
-            # ['category_encoders', 'category_encoders-2.5.1.post0-py2.py3-none-any.whl'],
-            # ['cycler', 'cycler-0.11.0-py3-none-any.whl'],
-            ['typing_extensions', 'typing_extensions-4.4.0-py3-none-any.whl'],
-            # ['kiwisolver', 'kiwisolver-1.4.4-cp39-cp39-win_amd64.whl'],
-            # ['fonttools', 'fonttools-4.38.0-py3-none-any.whl'],
-            # ['pillow', 'Pillow-9.3.0-cp37-cp37m-win_amd64.whl'],
-            # ['matplotlib', 'matplotlib-3.5.3-cp37-cp37m-win_amd64.whl'],
-            # ['attrs', 'attrs-22.1.0-py2.py3-none-any.whl'],
-            # ['colorama', 'colorama-0.4.6-py2.py3-none-any.whl'],
-            # ['exceptiongroup', 'exceptiongroup-1.0.0rc9-py3-none-any.whl'],
-            # ['iniconfig', 'iniconfig-1.1.1-py2.py3-none-any.whl'],
-            ['zipp', 'zipp-3.10.0-py3-none-any.whl'],
-            ['importlib_metadata', 'importlib_metadata-5.0.0-py3-none-any.whl'],
-            # ['pluggy', 'pluggy-1.0.0-py2.py3-none-any.whl'],
-            # ['tomli', 'tomli-2.0.1-py3-none-any.whl'],
-            # ['pytest', 'pytest-7.2.0-py3-none-any.whl'],
-            # ['sklearn2', 'sklearn2-0.0.13-py2.py3-none-any.whl'],
-            ['setuptools', 'setuptools-65.6.3-py3-none-any.whl'],
-            ['llvmlite', 'llvmlite-0.39.1-cp37-cp37m-win_amd64.whl'],
-            ['numba', 'numba-0.56.4-cp37-cp37m-win_amd64.whl'],
-            ['rapidfuzz', 'rapidfuzz-2.13.2-cp37-cp37m-win_amd64.whl'],
-            ['pyarrow', 'pyarrow-10.0.1-cp37-cp37m-win_amd64.whl']
+            ['numpy', 'numpy-1.21.6-cp37-cp37m-win_amd64.whl', '1.20.3'],
+            ['six', 'six-1.16.0-py2.py3-none-any.whl', '1.5'],
+            ['python-dateutil', 'python_dateutil-2.8.2-py2.py3-none-any.whl', '2.8.1'],
+            ['pytz', 'pytz-2022.6-py2.py3-none-any.whl', '2020.1'],
+            ['pandas', 'pandas-1.0.5-cp37-cp37m-win_amd64.whl', '1.0.5'],
+            ['pyparsing', 'pyparsing-3.0.9-py3-none-any.whl', '2.2.1'],
+            ['packaging', 'packaging-21.3-py3-none-any.whl', '21.3'],
+            # ['patsy', 'patsy-0.5.3-py2.py3-none-any.whl', '0.5.2'],
+            # ['scipy', 'scipy-1.7.3-cp37-cp37m-win_amd64.whl', '1.3.2'],
+            # ['statsmodels', 'statsmodels-0.13.5-cp37-cp37m-win_amd64.whl', '0.9.0'],
+            # ['pydot', 'pydot-1.4.2-py2.py3-none-any.whl', 'all'],
+            ['joblib', 'joblib-1.2.0-py3-none-any.whl', '1.0.0'],
+            # ['threadpoolctl', 'threadpoolctl-3.1.0-py3-none-any.whl', '2.0.0'],
+            # ['scikit-learn', 'scikit_learn-1.0-cp37-cp37m-win_amd64.whl', '0.20.0'],
+            # ['category_encoders', 'category_encoders-2.5.1.post0-py2.py3-none-any.whl', 'all'],
+            # ['cycler', 'cycler-0.11.0-py3-none-any.whl', '0.10'],
+            ['typing_extensions', 'typing_extensions-4.4.0-py3-none-any.whl', '3.6.4'],
+            # ['kiwisolver', 'kiwisolver-1.4.4-cp39-cp39-win_amd64.whl', '1.0.1'],
+            # ['fonttools', 'fonttools-4.38.0-py3-none-any.whl', '4.22.0'],
+            # ['pillow', 'Pillow-9.3.0-cp37-cp37m-win_amd64.whl', '6.2.0'],
+            # ['matplotlib', 'matplotlib-3.5.3-cp37-cp37m-win_amd64.whl', '1.5.1'],
+            # ['attrs', 'attrs-22.1.0-py2.py3-none-any.whl', '19.2.0'],
+            # ['colorama', 'colorama-0.4.6-py2.py3-none-any.whl', 'all'],
+            # ['exceptiongroup', 'exceptiongroup-1.0.0rc9-py3-none-any.whl', '1.0.0rc8'],
+            # ['iniconfig', 'iniconfig-1.1.1-py2.py3-none-any.whl', 'all'],
+            ['zipp', 'zipp-3.10.0-py3-none-any.whl', '0.5'],
+            ['importlib_metadata', 'importlib_metadata-5.0.0-py3-none-any.whl', '0.12'],
+            # ['pluggy', 'pluggy-1.0.0-py2.py3-none-any.whl', '0.12'],
+            # ['tomli', 'tomli-2.0.1-py3-none-any.whl', '1.0.0'],
+            # ['pytest', 'pytest-7.2.0-py3-none-any.whl', 'all'],
+            # ['sklearn2', 'sklearn2-0.0.13-py2.py3-none-any.whl', 'all'],
+            ['setuptools', 'setuptools-65.6.3-py3-none-any.whl', 'all'],
+            ['llvmlite', 'llvmlite-0.39.1-cp37-cp37m-win_amd64.whl', '0.39.0dev0'],
+            ['numba', 'numba-0.56.4-cp37-cp37m-win_amd64.whl', 'all'],
+            ['rapidfuzz', 'rapidfuzz-2.13.2-cp37-cp37m-win_amd64.whl', 'all'],
+            ['pyarrow', 'pyarrow-10.0.1-cp37-cp37m-win_amd64.whl', 'all']
             ]
     elif ver_minor == 9:
         ext_libs = [
             # Wyłączono paczki związane ze sklearn2
-            ['numpy', 'numpy-1.23.5-cp39-cp39-win_amd64.whl'],
-            ['six', 'six-1.16.0-py2.py3-none-any.whl'],
-            ['python-dateutil', 'python_dateutil-2.8.2-py2.py3-none-any.whl'],
-            ['pytz', 'pytz-2022.6-py2.py3-none-any.whl'],
-            ['pandas', 'pandas-1.5.2-cp39-cp39-win_amd64.whl'],
-            ['pyparsing', 'pyparsing-3.0.9-py3-none-any.whl'],
-            ['packaging', 'packaging-21.3-py3-none-any.whl'],
-            # ['patsy', 'patsy-0.5.3-py2.py3-none-any.whl'],
-            # ['scipy', 'scipy-1.9.3-cp39-cp39-win_amd64.whl'],
-            # ['statsmodels', 'statsmodels-0.13.5-cp39-cp39-win_amd64.whl'],
-            # ['pydot', 'pydot-1.4.2-py2.py3-none-any.whl'],
-            ['joblib', 'joblib-1.2.0-py3-none-any.whl'],
-            # ['threadpoolctl', 'threadpoolctl-3.1.0-py3-none-any.whl'],
-            # ['scikit-learn', 'scikit_learn-1.1.2-cp39-cp39-win_amd64.whl'],
-            # ['category_encoders', 'category_encoders-2.5.1.post0-py2.py3-none-any.whl'],
-            # ['cycler', 'cycler-0.11.0-py3-none-any.whl'],
-            # ['kiwisolver', 'kiwisolver-1.4.4-cp39-cp39-win_amd64.whl'],
-            # ['fonttools', 'fonttools-4.38.0-py3-none-any.whl'],
-            # ['pillow', 'Pillow-9.3.0-cp39-cp39-win_amd64.whl'],
-            # ['matplotlib', 'matplotlib-3.5.1-cp39-cp39-win_amd64.whl'],
-            # ['attrs', 'attrs-22.1.0-py2.py3-none-any.whl'],
-            # ['colorama', 'colorama-0.4.6-py2.py3-none-any.whl'],
-            # ['exceptiongroup', 'exceptiongroup-1.0.0rc9-py3-none-any.whl'],
-            # ['iniconfig', 'iniconfig-1.1.1-py2.py3-none-any.whl'],
-            # ['pluggy', 'pluggy-1.0.0-py2.py3-none-any.whl'],
-            # ['tomli', 'tomli-2.0.1-py3-none-any.whl'],
-            # ['pytest', 'pytest-7.2.0-py3-none-any.whl'],
-            # ['sklearn2', 'sklearn2-0.0.13-py2.py3-none-any.whl'],
-            ['setuptools', 'setuptools-65.6.3-py3-none-any.whl'],
-            ['llvmlite', 'llvmlite-0.39.1-cp39-cp39-win_amd64.whl'],
-            ['numba', 'numba-0.56.4-cp39-cp39-win_amd64.whl'],
-            ['rapidfuzz', 'rapidfuzz-2.13.2-cp39-cp39-win_amd64.whl'],
-            ['cramjam', 'cramjam-2.6.2-cp39-none-win_amd64.whl'],
-            ['fsspec', 'fsspec-2022.11.0-py3-none-any.whl'],
-            ['fastparquet', 'fastparquet-2022.11.0-cp39-cp39-win_amd64.whl']
+            ['numpy', 'numpy-1.23.5-cp39-cp39-win_amd64.whl', '1.20.3'],
+            ['six', 'six-1.16.0-py2.py3-none-any.whl', '1.5'],
+            ['python-dateutil', 'python_dateutil-2.8.2-py2.py3-none-any.whl', '2.8.1'],
+            ['pytz', 'pytz-2022.6-py2.py3-none-any.whl', '2020.1'],
+            ['pandas', 'pandas-1.5.2-cp39-cp39-win_amd64.whl', '1.5.0'],
+            ['pyparsing', 'pyparsing-3.0.9-py3-none-any.whl', '2.2.1'],
+            ['packaging', 'packaging-21.3-py3-none-any.whl', '21.3'],
+            # ['patsy', 'patsy-0.5.3-py2.py3-none-any.whl', '0.5.2'],
+            # ['scipy', 'scipy-1.9.3-cp39-cp39-win_amd64.whl', '1.3.2'],
+            # ['statsmodels', 'statsmodels-0.13.5-cp39-cp39-win_amd64.whl', '0.9.0'],
+            # ['pydot', 'pydot-1.4.2-py2.py3-none-any.whl', 'all'],
+            ['joblib', 'joblib-1.2.0-py3-none-any.whl', '1.0.0'],
+            # ['threadpoolctl', 'threadpoolctl-3.1.0-py3-none-any.whl', '2.0.0'],
+            # ['scikit-learn', 'scikit_learn-1.1.2-cp39-cp39-win_amd64.whl', '0.20.0'],
+            # ['category_encoders', 'category_encoders-2.5.1.post0-py2.py3-none-any.whl', 'all'],
+            # ['cycler', 'cycler-0.11.0-py3-none-any.whl', '0.10'],
+            # ['kiwisolver', 'kiwisolver-1.4.4-cp39-cp39-win_amd64.whl', '1.0.1'],
+            # ['fonttools', 'fonttools-4.38.0-py3-none-any.whl', '4.22.0'],
+            # ['pillow', 'Pillow-9.3.0-cp39-cp39-win_amd64.whl', '6.2.0'],
+            # ['matplotlib', 'matplotlib-3.5.1-cp39-cp39-win_amd64.whl', '1.5.1'],
+            # ['attrs', 'attrs-22.1.0-py2.py3-none-any.whl', '19.2.0'],
+            # ['colorama', 'colorama-0.4.6-py2.py3-none-any.whl', 'all'],
+            # ['exceptiongroup', 'exceptiongroup-1.0.0rc9-py3-none-any.whl', '1.0.0rc8'],
+            # ['iniconfig', 'iniconfig-1.1.1-py2.py3-none-any.whl', 'all'],
+            # ['pluggy', 'pluggy-1.0.0-py2.py3-none-any.whl', '0.12'],
+            # ['tomli', 'tomli-2.0.1-py3-none-any.whl', '1.0.0'],
+            # ['pytest', 'pytest-7.2.0-py3-none-any.whl', 'all'],
+            # ['sklearn2', 'sklearn2-0.0.13-py2.py3-none-any.whl', 'all'],
+            ['setuptools', 'setuptools-65.6.3-py3-none-any.whl', 'all'],
+            ['llvmlite', 'llvmlite-0.39.1-cp39-cp39-win_amd64.whl', '0.39.0dev0'],
+            ['numba', 'numba-0.56.4-cp39-cp39-win_amd64.whl', 'all'],
+            ['rapidfuzz', 'rapidfuzz-2.13.2-cp39-cp39-win_amd64.whl', 'all'],
+            ['cramjam', 'cramjam-2.6.2-cp39-none-win_amd64.whl', '2.3'],
+            ['fsspec', 'fsspec-2022.11.0-py3-none-any.whl', 'all'],
+            ['fastparquet', 'fastparquet-2022.11.0-cp39-cp39-win_amd64.whl', 'all']
             ]
     else:
         QMessageBox.critical(None, "WellMatch", f"Wtyczka WellMatch nie może być uruchomiona w tej wersji QGIS. Możesz zgłosić się o pomoc do autora - dszr@pgi.gov.pl")
         return -1
     for lib in ext_libs:
-        required_ver = lib_ver_from_name(lib[1])
+        required_ver = lib[2]  # lib_ver_from_name(lib[1])
         if not required_ver:
-            print(f"required_ver error: {lib[1]}")
+            print(f"Błąd przy ustaleniu wymaganej wersji biblioteki: {lib[1]}")
             missing_libs.append(lib)
             continue
         try:
             current_ver = pkg_resources.get_distribution(lib[0]).version
         except:
-            print(f"current_ver error: {lib[0]}")
+            print(f"Brak zainstalowanej biblioteki: {lib[0]}")
             missing_libs.append(lib)
             continue
-        if pkg_resources.parse_version(current_ver) < pkg_resources.parse_version(required_ver):
-            print(f"{lib[0]}, current:{pkg_resources.parse_version(current_ver)}, required:{pkg_resources.parse_version(required_ver)}")
-            missing_libs.append(lib)
-        print(f"====== {lib[0]}, current:{pkg_resources.parse_version(current_ver)}, required:{pkg_resources.parse_version(required_ver)}")
+        if required_ver != 'all':
+            if pkg_resources.parse_version(current_ver) < pkg_resources.parse_version(required_ver):
+                print(f"{lib[0]}, current:{pkg_resources.parse_version(current_ver)}, required:{pkg_resources.parse_version(required_ver)}")
+                missing_libs.append(lib)
     return missing_libs
 
 def lib_ver_from_name(lib_name):
@@ -381,14 +383,25 @@ def lib_ver_from_name(lib_name):
 
 def missing_libs_install(libs):
     """Instaluje brakujące biblioteki zewnętrzne."""
-    import subprocess
     for lib in libs:
         lib_path = f'{LIBS_PATH}{lib[1]}'
         lib_path = lib_path.replace("\\\\", "\\")
         print(lib_path)
+        installed = lib_install_with_proxy(lib_path)
+        if installed:
+            continue
+        # Próba instalacji paczki bez proxy:
         try:
             subprocess.check_call(['python', '-m', 'pip', 'install', lib_path, '--force-reinstall', '--no-dependencies'])
         except Exception as err:
-            QMessageBox.critical(None, "WellMatch", f"Brak możliwości instalacji zewnętrznych bibliotek ({err}). Możesz zgłosić się o pomoc do autora - dszr@pgi.gov.pl")
+            QMessageBox.critical(None, "WellMatch", f"Brak możliwości instalacji biblioteki ({err}). Możesz zgłosić się o pomoc do autora - dszr@pgi.gov.pl")
             return
-    QMessageBox.information(None, "WellMatch", f"Wszystkie biblioteki zostały zainstalowane. Należy uruchomić ponownie program QGIS.")
+    QMessageBox.information(None, "WellMatch", f"Wszystkie wymagane biblioteki zostały zainstalowane. Należy uruchomić ponownie program QGIS.")
+
+def lib_install_with_proxy(lib_path):
+    """Instalacja paczki z użyciem proxy."""
+    try:
+        subprocess.check_call(['python', '-m', 'pip', 'install', lib_path, '--force-reinstall', '--no-dependencies', '--proxy=proxy.pgi.local'])
+    except:
+        return False
+    return True
