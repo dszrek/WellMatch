@@ -207,7 +207,13 @@ class WellMatch:
     def title_change(self, closing=False):
         """Zmiana tytułu okna QGIS."""
         title = iface.mainWindow().windowTitle()
-        new_title = title.replace('| WellMatch', '- QGIS') if closing else title.replace('- QGIS', '| WellMatch')
+        dashes = ['-', '—']  # W różnych wersjach QGIS występują inne dywizory w tytule
+        _dash = ''
+        for dash in dashes:
+            if dash in title:
+                _dash = dash
+                break
+        new_title = title.replace('| WellMatch', f'{dash} QGIS') if closing else title.replace(f'{dash} QGIS', '| WellMatch')
         iface.mainWindow().setWindowTitle(new_title)
 
     #--------------------------------------------------------------------------

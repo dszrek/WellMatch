@@ -179,7 +179,13 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         if obj is iface.mainWindow() and event.type() == QEvent.WindowTitleChange:
             # Zmiana tytułu okna QGIS:
             title = self.app.windowTitle()
-            new_title = title.replace('- QGIS', '| WellMatch')
+            dashes = ['-', '—']  # W różnych wersjach QGIS występują inne dywizory w tytule
+            _dash = ''
+            for dash in dashes:
+                if dash in title:
+                    _dash = dash
+                    break
+            new_title = title.replace(f'{dash} QGIS', '| WellMatch')
             self.app.setWindowTitle(new_title)
         if obj is iface.mainWindow() and event.type() == QEvent.Close:
             # Zamknięcie QGIS'a:
