@@ -40,7 +40,7 @@ from rapidfuzz import fuzz
 from threading import Thread
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QDockWidget, QMessageBox, QHBoxLayout
-from qgis.PyQt.QtCore import Qt, pyqtSignal, QEvent, QVariant, QModelIndex, QItemSelectionModel
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QEvent, QVariant, QModelIndex, QItemSelectionModel, QTimer
 from qgis.core import QgsApplication, QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsRectangle
 from qgis.utils import iface
 
@@ -73,6 +73,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.canvas = iface.mapCanvas()
         self.lyr = LayerManager(dlg=self)
         self.gui_mode = "init"
+        self.b_mode = None
         self.btn_export_joint.setVisible(False)
         self.first_sel = True
         self.sel_change_void = False
@@ -95,6 +96,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.btn_c_add = CustomButton(self.frm_loc, name="c_add", size=36, checkable=True)
         self.btn_c_del = CustomButton(self.frm_loc, name="c_del", size=36, checkable=False, visible=False)
         self.btn_loc = MultiStateButton(self.frm_loc, name="xy", size=55, hsize=36, states=[0, 1, 3])
+        self.btn_mode = CustomButton(self.frm_b_options, name="mode", size=50, hsize=36, checkable=True)
+        self.frm_b_options.layout().addWidget(self.btn_mode)
         hlay = QHBoxLayout()
         hlay.setContentsMargins(0, 0, 0, 0)
         hlay.setSpacing(4)
@@ -105,6 +108,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.btn_loc.clicked.connect(self.loc_change)
         self.btn_c_add.clicked.connect(self.loc_c_init)
         self.btn_c_del.pressed.connect(self.loc_c_del)
+        self.btn_mode.clicked.connect(self.mode_change)
         self.localizing = False
         self.cat = ""
         self.cat_changed.connect(self.cat_change)
@@ -173,7 +177,12 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
         self.matched_mdl = None
 
+        self.t_void = False  # Blokada stopera zmiany zasięgu mapcanvas'u
+        self.extent = None  # Zasięg geoprzestrzenny aktualnego widoku mapy
+        self.timer = None  # Obiekt stopera zmiany zasięgu mapcanvas'u
+
         self.app.installEventFilter(self)  # Nasłuchiwanie zmiany tytułu okna QGIS
+        self.canvas.extentsChanged.connect(self.extent_changed)
 
     def eventFilter(self, obj, event):
         if obj is iface.mainWindow() and event.type() == QEvent.WindowTitleChange:
@@ -223,11 +232,48 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             QMessageBox.critical(self.app, "WellMatch", m_text)
             self.close()
 
+    def extent_changed(self):
+        """Zmiana zasięgu geoprzestrzennego widoku mapy."""
+        if self.b_mode != "screen":
+            return
+        if self.t_void:
+            # Wyjście z funkcji, jeśli stoper obecnie pracuje
+            return
+        self.t_void = True
+        self.extent = self.canvas.extent()
+        self.timer = QTimer()
+        self.timer.setInterval(250)
+        self.timer.timeout.connect(self.check_extent)
+        self.timer.start()  # Odpalenie stopera
+
+    def check_extent(self):
+        """Sprawdzenie, czy zakres widoku mapy przestał się zmieniać."""
+        if self.extent != self.canvas.extent():  # Zmienił się
+            self.extent = self.canvas.extent()
+        else:
+            # Kasowanie stopera:
+            if self.timer:
+                self.timer.stop()
+                self.timer = None
+            self.t_void = False
+            if self.b_mode == "screen":
+                print("+++++++++++++++[extent_change screen]+++++++++++++++")
+            self.extent = self.canvas.extent()
+
     def __setattr__(self, attr, val):
         """Przechwycenie zmiany atrybutu."""
         super().__setattr__(attr, val)
         if attr == "gui_mode":
             self.frames_visibility()
+            if val == "manual":
+                self.b_mode = "top"
+        if attr == "b_mode":
+            if val == "top":
+                print("==================== mode: top")
+                self.btn_lvl.setVisible(True)
+            elif val == "screen":
+                print("==================== mode: screen")
+                self.btn_lvl.setVisible(False)
         if attr == "localizing":
             if val:
                 self.btn_c_add.setChecked(True)
@@ -1903,6 +1949,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         df = df.reindex(df.columns.tolist() + ['a_idx'], axis=1)
         return df
 
+    def mode_change(self):
+        """Zmiana trybu wyświetlania otworów B ('top' - otwory najbardziej dopasowane wg analizy, 'screen' - wszystkie otwory z obrębu widoku mapy)."""
+        self.b_mode = "screen" if self.btn_mode.isChecked() else "top"
+
     def loc_change(self):
         """Zmiana w adf wartości 'loc' dla otworu A (0 - prawidłowe są wpółrzędne XY z otworu A, 1 - prawidłowe są z otworu B, 2 - lokalizacja C, 3 - nie ustalono prawidłowej lokalizacji)."""
         if self.btn_loc.isEnabled():
@@ -2275,6 +2325,11 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         except Exception as err:
             print(f"closeEvent/self.proj.disconnect: {err}")
         self.proj = None
+        self.canvas.extentsChanged.disconnect(self.extent_changed)
+        try:
+            self.canvas = None
+        except Exception as err:
+            print(f"closeEvent/self.canvas: {err}")
         try:
             self.lyr = None
         except Exception as err:
