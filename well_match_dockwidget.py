@@ -139,8 +139,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.a_r = None
         self.a_pnt = None
         self.b_pnt = False
-        self.pdf_sel = False
-        self.a2_idx = int()
+        # self.pdf_sel = False
+        self.a2_idx = None
         self.a_id = None
         self.sel_case = 0
         self.loc = 0
@@ -1381,7 +1381,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.pck_pdf = pd.DataFrame(columns=self.pck_pdf.columns)
         self.pck_adf = pd.DataFrame(columns=self.pck_adf.columns)
         self.other_pdf = pd.DataFrame(columns=self.other_pdf.columns)
-        self.pdf_sel = False
+        # self.pdf_sel = False
         self.b_pnt = False
         try:
             self.pdf_mdl.setDataFrame(self.p_col(self.pdf))
@@ -1847,14 +1847,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             return
         tv_idx = self.pdf.index[~self.pdf['picked'].isna()].tolist()
         if len(tv_idx) == 0:
-            self.pdf_sel = False
+            # self.pdf_sel = False
             index = QModelIndex()
             self.tv_pdf.scrollToTop()
             self.frm_b1.setVisible(False)
             self.frm_b2.setVisible(False)
             self.frm_b3.setVisible(False)
         else:
-            self.pdf_sel = True
+            # self.pdf_sel = True
             index = self.tv_pdf.model().index(tv_idx[0], 0)
             self.tv_pdf.scrollTo(index)
         self.tv_pdf.setCurrentIndex(index)
