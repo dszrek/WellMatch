@@ -134,9 +134,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.a_idx = None
         self.a_x = float()
         self.a_y = float()
-        self.a_z = float()
-        self.a_h = float()
-        self.a_r = int()
+        self.a_z = None
+        self.a_h = None
+        self.a_r = None
         self.a_pnt = None
         self.b_pnt = False
         self.pdf_sel = False
@@ -308,7 +308,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                         self.a_pnt = np.array((self.a_x, self.a_y))
                         self.btn_loc.list_add(1)
                 else:
-                    if self.a_idx:
+                    if self.a_idx is not None:
                         self.btn_loc.list_del(1)
             self.btn_link_change.setEnabled(False) if val < 2 else self.btn_link_change.setEnabled(True)
         if attr == "cat":
@@ -429,7 +429,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.save_adf()
         if self.cat:
             self.cat_change(self.cat)
-        if self.a_idx:
+        if self.a_idx is not None:
             self.adf_sel_active()
 
     def loc_c_init(self):
@@ -585,12 +585,13 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.a_id = None
         self.a_x = float()
         self.a_y = float()
-        self.a_z = float()
-        self.a_h = float()
-        self.a_r = int()
+        self.a_z = None
+        self.a_h = None
+        self.a_r = None
         self.a_pnt = None
-        self.pdf_sel = False
-        self.a2_idx = int()
+        # self.pdf_sel = False
+        self.a2_idx = None
+        self.b1_id = None
         self.adf = pd.DataFrame()
         self.bdf = pd.DataFrame()
         self.bdf_1 = pd.DataFrame()
@@ -1307,7 +1308,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def manual_analize(self):
         """Analiza manualna - zapis działania kNN do csv."""
-        if not self.a_idx:
+        if self.a_idx is None:
             return
         pdf = self.bdf.copy()
         # Obliczenie odległości od parametrów dla wszystkich otworów z B:
@@ -1345,9 +1346,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.a_idx = None
         self.a_x = float()
         self.a_y = float()
-        self.a_z = float()
-        self.a_h = float()
-        self.a_r = int()
+        self.a_z = None
+        self.a_h = None
+        self.a_r = None
         self.a_pnt = None
         # Czyszczenie widgetów:
         self.lab_a_id.setText("")
@@ -1426,7 +1427,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             return
         # Stworzenie ramki informacyjnej dla konsoli pythona:
         id_long = len(str(a_id)) if a_id else 4
-        idx_long = len(str(self.a_idx)) if self.a_idx else 4
+        idx_long = len(str(self.a_idx)) if self.a_idx is not None else 4
         frame_long = id_long + 5 if id_long >= idx_long else idx_long + 5
         print(f"╔{'═' * (frame_long + 4)}╗")
         print(f"║ a_idx: {str(self.a_idx)}{' ' * (frame_long - (idx_long + 4))}║")
@@ -1669,6 +1670,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def pdf_create(self):
         """Tworzenie tymczasowego dataframe'a z otworami z bazy B połączonych z aktywnym otworem z bazy A."""
+        if self.a_idx is None:
+            return
         # Posprzątanie nieaktualnych danych:
         self.pdf = pd.DataFrame(columns=self.pdf.columns)
         self.sel_pdf = pd.DataFrame(columns=self.sel_pdf.columns)
@@ -2077,14 +2080,18 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.a1b1()
         self.a1b2()
         self.a2b1()
-        self.canvas_zoom()
+        if not zoom_void:
+            self.canvas_zoom()
+        else:
+            iface.actionDraw().trigger()
+            self.canvas.refresh()
 
     def a_1(self):
         """Umieszczenie na warstwie A_1 punktu wybranego otworu z bazy A. Jeśli otwór z bazy A nie jest wybrany - wyczyszczenie warstwy."""
         al = QgsProject.instance().mapLayersByName("A_1")[0]
         pr = al.dataProvider()
         pr.truncate()
-        if not self.a_idx or np.isnan(self.a_x) or np.isnan(self.a_y):
+        if self.a_idx is None or np.isnan(self.a_x) or np.isnan(self.a_y):
             return
         al.startEditing()
         ft = QgsFeature()
@@ -2275,7 +2282,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def canvas_zoom(self):
         """Przybliżenie mapy do wyświetlonych obiektów."""
-        if not self.a_idx:  # Na mapie nic się nie wyświetla
+        if self.a_idx is None:  # Na mapie nic się nie wyświetla
             self.canvas.setExtent(init_extent())
             self.canvas.refresh()
             return
