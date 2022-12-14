@@ -144,6 +144,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.a_id = None
         self.sel_case = 0
         self.loc = 0
+        self.b1_id = None
+        self.a_changed = False
 
         # Dataframe'y:
         self.adf = pd.DataFrame()
@@ -256,9 +258,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                 self.timer.stop()
                 self.timer = None
             self.t_void = False
-            if self.b_mode == "screen":
-                print("+++++++++++++++[extent_change screen]+++++++++++++++")
             self.extent = self.canvas.extent()
+            if self.b_mode == "screen":
+                self.pdf_create_screen(zoom_void=True)
 
     def __setattr__(self, attr, val):
         """Przechwycenie zmiany atrybutu."""
@@ -269,11 +271,11 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                 self.b_mode = "top"
         if attr == "b_mode":
             if val == "top":
-                print("==================== mode: top")
                 self.btn_lvl.setVisible(True)
+                self.pdf_create_top(zoom_void=True)
             elif val == "screen":
-                print("==================== mode: screen")
                 self.btn_lvl.setVisible(False)
+                self.pdf_create_screen(zoom_void=True)
         if attr == "localizing":
             if val:
                 self.btn_c_add.setChecked(True)
@@ -1398,6 +1400,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def adf_sel_change(self):
         """Zmiana zaznaczenia wiersza w tableview z adf."""
+        self.a_changed = True
+        self.b1_id = None
         sel_tv = self.tv_adf.selectionModel()
         index = sel_tv.currentIndex()
         if index.row() == -1:
@@ -1486,21 +1490,28 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         #     self.btn_loc.setEnabled(True)
         #     self.btn_loc.setChecked(False)
         #     self.btn_loc.state = 2 if self.loc == 3 else self.loc
-        self.pdf_create()
+        self.pdf_create_screen() if self.b_mode == "screen" else self.pdf_create_top()
 
-    def pdf_sel_change(self):
+    def pdf_sel_change(self, zoom_void=False):
         """Zaznaczenie wiersza w tableview z pdf."""
         # Referencja do zaznaczonego wiersza w tv_pdf:
         sel_tv = self.tv_pdf.selectionModel()
         index = sel_tv.currentIndex()
-        if index.row() == -1:  # Brak zaznaczonego wiersza w pdf_tv
+        if index.row() != -1:
+            self.b1_id = index.sibling(index.row(), 1).data()  # Zapamiętanie id nowego zaznaczonego otworu
+        elif self.b1_id is not None:
+            # Próba ponownego zaznaczenia wybranego otworu (potrzebne w trybie 'screen' po zmianie extent'u)
+            idx = self.tv_pdf.model().match(self.tv_pdf.model().index(0, 1), Qt.DisplayRole, self.b1_id)
+            if idx:
+                self.tv_pdf.scrollTo(idx[0])
+                self.tv_pdf.setCurrentIndex(idx[0])
+        elif index.row() == -1 and self.b1_id is None:  # Brak zaznaczonego wiersza w pdf_tv
             self.sel_case = 0
-            self.clear_pdf()
+            self.other_pdf = self.pdf.copy()
+            self.canvas_update(zoom_void=zoom_void)  # Aktualizacja warstw qgis
             return
-        self.pdf_sel = True
-        s_id = index.sibling(index.row(), 1).data()  # Referencja do b_id zaznaczonego otworu
         # Przekazanie do oddzielnego dataframe'u danych zaznaczonego otworu:
-        mask = self.pdf['ID'].astype(str) == str(s_id)
+        mask = self.pdf['ID'].astype(str) == str(self.b1_id)
         self.sel_pdf = self.pdf[mask].reset_index(drop=True)
         # Przekazanie do oddzielnego dataframe'u danych wszystkich otworów z pdf z wyłączeniem zaznaczonego otworu:
         self.other_pdf = self.pdf[~mask].reset_index(drop=True)
@@ -1547,7 +1558,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                 self.frm_b3.setVisible(False)
                 self.vl_solver.setContentsMargins(6, 6, 6, 6)
                 self.vl_solver.setSpacing(4)
-        self.canvas_update()  # Aktualizacja warstw qgis
+        self.canvas_update(zoom_void=zoom_void)  # Aktualizacja warstw qgis
 
     def sel_is_picked(self):
         """Zwraca, czy otwór zaznaczony w tv_pdf jest zestawiony z aktualnie wybranym otworem A."""
@@ -1668,7 +1679,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.lab_b_h.setText("-") if b_h is None else self.lab_b_h.setText(self.float_format(b_h))
         self.lab_b_r.setText("-") if b_r is None else self.lab_b_r.setText(str(b_r))
 
-    def pdf_create(self):
+    def pdf_create_top(self, zoom_void=False):
         """Tworzenie tymczasowego dataframe'a z otworami z bazy B połączonych z aktywnym otworem z bazy A."""
         if self.a_idx is None:
             return
@@ -1707,6 +1718,61 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.pdf['picked'].update(picked['picked'])  # Nadpisanie wiersza z pdf danymi z tymczasowego df 'picked'
         self.pdf['picked'] = self.pdf['picked'].astype('Int64')
         self.pdf_mdl.setDataFrame(self.p_col(self.pdf))
+        self.picked_row_sel()
+        self.pdf_sel_change(zoom_void=zoom_void)
+
+    def pdf_create_screen(self, zoom_void=False):
+        """Tworzenie tymczasowego dataframe'a z otworami z bazy B połączonych z aktywnym otworem z bazy A."""
+        # extent = self.canvas.extent().scaled(0.9, self.canvas.extent().center())
+        x1 = self.canvas.extent().xMinimum()
+        x2 = self.canvas.extent().xMaximum()
+        y1 = self.canvas.extent().yMinimum()
+        y2 = self.canvas.extent().yMaximum()
+        # Posprzątanie nieaktualnych danych:
+        self.pdf = pd.DataFrame(columns=self.pdf.columns)
+        self.sel_pdf = pd.DataFrame(columns=self.sel_pdf.columns)
+        self.pck_pdf = pd.DataFrame(columns=self.pck_pdf.columns)
+        self.pck_adf = pd.DataFrame(columns=self.pck_adf.columns)
+        self.other_pdf = pd.DataFrame(columns=self.other_pdf.columns)
+        # self.pdf_mdl.sort_reset()  # Wyłączenie sortowania po kolumnie
+        # Utworzenie listy otworów z bazy B, które mają linki z aktualnym otworem z bazy A:
+        pdf_1 = self.bdf[((self.bdf['X'] > x1) & (self.bdf['X'] < x2) & (self.bdf['Y'] > y1) & (self.bdf['Y'] < y2)) | (self.bdf['a_idx'].astype('str') == str(self.a_idx))]
+        if len(pdf_1) == 0 and self.b1_id is None:
+            # Zwraca pusty dataframe
+            self.pdf_mdl.setDataFrame(self.p_col(self.pdf))
+            return
+        # Pobranie parametrów wybranych otworów z bazy B:
+        b_list = pdf_1.index.tolist()
+        if self.b1_id is not None:
+            # Dodanie do listy zaznaczonego poprzednio otworu (może się znajdować poza extent'em)
+            pdf_sel = self.bdf[self.bdf['ID'].astype('str') == str(self.b1_id)]
+            if len(pdf_sel) > 0:
+                sel_list = pdf_sel.index.tolist()
+                b_list.extend(x for x in sel_list if x not in b_list)
+        pdf_2 = self.bdf[self.bdf.index.isin(b_list)]
+        # Przeprowadzenie analizy otworów, aby uzyskać wartości rankingowe
+        # (przy automatycznej analizie ich nie zapisano z uwagi na oszczędność przestrzeni dyskowej):
+        pdf_2 = self.analize_selected(pdf_2)
+        # Obliczenie średniej ze wszystkich parametrów (bez wartości 0):
+        pdf_2['Avg'] = pdf_2[['m_rank', 'z_rank', 'h_rank', 'r_rank', 'n_rank']].replace(0.0, np.NaN).mean(axis=1)
+        # Obliczenie mediany ze wszystkich parametrów:
+        pdf_2['Me'] = pdf_2[['m_rank', 'z_rank', 'h_rank', 'r_rank', 'n_rank']].median(axis=1)
+        # Połączenie wszystkich powyższych danych we wspólny dataframe:
+        pdf_2['ab'] = np.nan
+        pdf_2['ba'] = np.nan
+        self.pdf = pdf_2.copy() # pd.concat([pdf_2, pdf_1], axis=1)
+        # Przesortowanie po parametrze 'm_rank':
+        self.pdf = self.pdf.sort_values(by=['m_rank'], ascending=[False]).rename_axis('b_idx').reset_index()
+        # Ustalenie, czy w otworach B znajduje się ustalone połączenie z otworem A:
+        picked = self.pdf.copy()
+        picked['a_idx'] = picked['a_idx'].fillna(-1)  # Uzupełnienie pustych wartości w kolumnie a_idx
+        picked = picked[picked['a_idx'] == self.a_idx]  # Wybranie wiersza, który ma id otworu A
+        picked['picked'] = self.a_idx  # Stworzenie kolumny 'picked' z wartością 'a_idx'
+        self.pdf['picked'] = np.nan  # Dodanie do pdf pustej kolumny 'picked'
+        self.pdf['picked'].update(picked['picked'])  # Nadpisanie wiersza z pdf danymi z tymczasowego df 'picked'
+        self.pdf['picked'] = self.pdf['picked'].astype('Int64')
+        self.pdf_mdl.setDataFrame(self.p_col(self.pdf))
+        self.pdf_sel_change(zoom_void=zoom_void)
         self.picked_row_sel()
 
     def float_format(self, val):
@@ -1845,6 +1911,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         """Zaznacza wiersz z otworem zestawionym w tableview zbioru B."""
         if len(self.pdf) == 0:
             return
+        if self.b1_id is not None:
+            return
         tv_idx = self.pdf.index[~self.pdf['picked'].isna()].tolist()
         if len(tv_idx) == 0:
             # self.pdf_sel = False
@@ -1858,7 +1926,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             index = self.tv_pdf.model().index(tv_idx[0], 0)
             self.tv_pdf.scrollTo(index)
         self.tv_pdf.setCurrentIndex(index)
-        self.canvas_update()
 
     def copy_to_clipboard(self, tv, model):
         """Kopiuje zawartość komórki po dwukrotnym kliknięciu."""
@@ -1907,7 +1974,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         tv_pdf_headers = ['', 'ID','NAZWA', 'M', 'N', 'Z', 'Gł.', 'Rok', 'Śr.', 'Me.', '.']
         t = pd.DataFrame({'': [np.nan], 'ID': ['1000'], 'NAZWA': ['A'], 'M': [1.0], 'N': [1.0], 'Z': [1.0], 'Gł.': [1.0], 'Rok': [1.0], 'Śr.': [1.0], 'Me.': [1.0], '.': [np.nan]})
         self.pdf_mdl = PDfModel(df=t, tv=self.tv_pdf, col_widths=tv_pdf_widths, col_names=tv_pdf_headers)
-        self.tv_pdf.selectionModel().selectionChanged.connect(self.pdf_sel_change)
+        self.tv_pdf.selectionModel().selectionChanged.connect(lambda: self.pdf_sel_change(zoom_void=True))
         self.tv_pdf.doubleClicked.connect(lambda: self.copy_to_clipboard(self.tv_pdf, self.pdf_mdl))
 
     def calc_params_max(self):
@@ -2069,7 +2136,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.analizing = False
             self.frm_project.setEnabled(True)
 
-    def canvas_update(self):
+    def canvas_update(self, zoom_void=False):
         """Aktualizacja warstw projektowych."""
         self.a_1()
         self.a_2()
@@ -2284,6 +2351,17 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         """Przybliżenie mapy do wyświetlonych obiektów."""
         if self.a_idx is None:  # Na mapie nic się nie wyświetla
             self.canvas.setExtent(init_extent())
+            self.canvas.refresh()
+            return
+        if self.b_mode == "screen":
+            if self.a_changed:
+                # W trybie 'screen' zmieniono otwór A - zoom'ujemy na niego
+                self.a_changed = False
+                c_pnt = QgsPointXY(self.a_x, self.a_y)
+                self.canvas.setCenter(c_pnt)
+                self.canvas.zoomScale(10000)
+                cs = self.canvas.scale()
+                self.canvas.zoomScale(cs + (cs * 0.4))
             self.canvas.refresh()
             return
         l_x = []
