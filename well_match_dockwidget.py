@@ -98,13 +98,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.btn_loc = MultiStateButton(self.frm_loc, name="xy", size=55, hsize=36, states=[0, 1, 3])
         self.btn_mode = CustomButton(self.frm_b_options, name="mode", size=50, hsize=36, checkable=True)
         self.frm_b_options.layout().addWidget(self.btn_mode)
-        hlay = QHBoxLayout()
-        hlay.setContentsMargins(0, 0, 0, 0)
-        hlay.setSpacing(4)
-        hlay.addWidget(self.btn_c_add)
-        hlay.addWidget(self.btn_c_del)
-        hlay.addWidget(self.btn_loc)
-        self.frm_loc.setLayout(hlay)
+        self.frm_loc.layout().addWidget(self.btn_loc)
+        self.frm_loc.layout().addWidget(self.btn_c_add)
+        self.frm_loc.layout().addWidget(self.btn_c_del)
         self.btn_loc.clicked.connect(self.loc_change)
         self.btn_c_add.clicked.connect(self.loc_c_init)
         self.btn_c_del.pressed.connect(self.loc_c_del)
@@ -114,9 +110,11 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.cat_changed.connect(self.cat_change)
         ss = f"background-image:url({UI_PATH}a1.png)"
         ss = ss.replace("\\", "/")
+        self.icon_a.setStyleSheet(ss)
         self.icon_a1.setStyleSheet(ss)
         ss = f"background-image:url({UI_PATH}b1.png)"
         ss = ss.replace("\\", "/")
+        self.icon_b.setStyleSheet(ss)
         self.icon_b1.setStyleSheet(ss)
         ss = f"background-image:url({UI_PATH}b2.png)"
         ss = ss.replace("\\", "/")
