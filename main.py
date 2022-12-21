@@ -1,15 +1,13 @@
 #!/usr/bin/python
 import os
 import pandas as pd
-import numpy as np
 
 from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox
-from PyQt5.QtCore import QDir, QVariant
-from qgis.core import QgsProject, QgsApplication, QgsVectorLayer, QgsRasterLayer, QgsRectangle, QgsGeometry, QgsWkbTypes, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsPointXY, QgsField, QgsLayerTreeGroup, QgsLayerTreeLayer
+from PyQt5.QtCore import QDir
+from qgis.core import QgsApplication, QgsVectorLayer, QgsRasterLayer, QgsRectangle, QgsCoordinateReferenceSystem, QgsLayerTreeLayer
 from qgis.utils import iface
 
 from .import_data_dialog import ImportDataDialog
-from .classes import DataFrameModel
 
 PATH_PRJ = None
 STYLE_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'styles' + os.path.sep

@@ -1,12 +1,14 @@
 #!/usr/bin/python
+import sys
 import os
 import pandas as pd
 import numpy as np
 
-from qgis.gui import QgsMapTool
+from threading import Thread
+
 from qgis.PyQt.QtCore import Qt, QSize, QAbstractTableModel, pyqtSignal, pyqtProperty, pyqtSlot, QVariant, QModelIndex, QObject, QRect
-from qgis.PyQt.QtGui import QColor, QPen, QBrush, QPalette, QPainter, QIcon
-from qgis.PyQt.QtWidgets import QHeaderView, QStyledItemDelegate, QItemDelegate, QStyle, QStyleOptionViewItem, QTableView, QToolButton
+from qgis.PyQt.QtGui import QColor, QPen, QPainter, QIcon
+from qgis.PyQt.QtWidgets import QHeaderView, QStyledItemDelegate, QStyle, QToolButton
 
 ICON_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'ui' + os.path.sep
 
@@ -533,20 +535,22 @@ class MultiStateButton(QToolButton):
         self.state = self.states[0]
 
 
-class AddCLoc(QgsMapTool):
-    """Maptool do pobierania współrzędnych lokalizacji C."""
-    c_added = pyqtSignal(object)
-
-    def __init__(self, dlg, canvas):
-        self.dlg = dlg
-        self.canvas = canvas
-        QgsMapTool.__init__(self, canvas)
-        self.setCursor(Qt.CrossCursor)
- 
-    def canvasReleaseEvent(self, event):
-        point = self.toMapCoordinates(event.pos())
-        self.c_added.emit(point)
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            self.dlg.localizing = False
+def threading_func(f):
+    """Dekorator dla funkcji zwracającej wartość i działającej poza głównym wątkiem QGIS'a."""
+    def start(*args, **kwargs):
+        def run():
+            try:
+                th.ret = f(*args, **kwargs)
+            except:
+                th.exc = sys.exc_info()
+        def get(timeout=None):
+            th.join(timeout)
+            if th.exc:
+                raise th.exc[1]
+            return th.ret
+        th = Thread(None, run)
+        th.exc = None
+        th.get = get
+        th.start()
+        return th
+    return start

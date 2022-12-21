@@ -44,7 +44,8 @@ from qgis.PyQt.QtCore import Qt, pyqtSignal, QEvent, QVariant, QModelIndex, QIte
 from qgis.core import QgsApplication, QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsRectangle
 from qgis.utils import iface
 
-from .classes import DataFrameModel, ADfModel, PDfModel, run_in_main_thread, CustomButton, MultiStateButton, AddCLoc
+from .classes import DataFrameModel, ADfModel, PDfModel, run_in_main_thread, CustomButton, MultiStateButton
+from .maptools import MapToolManager
 from .main import LayerManager, init_extent, check_files, df_load
 
 UI_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'ui' + os.path.sep
@@ -71,7 +72,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.proj.legendLayersAdded.connect(self.layers_adding)
         self.app = iface.mainWindow()
         self.canvas = iface.mapCanvas()
-        self.lyr = LayerManager(dlg=self)
         self.gui_mode = "init"
         self.b_mode = None
         self.btn_export_joint.setVisible(False)
@@ -93,19 +93,25 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.btn_export_joint.clicked.connect(self.export_joint)
         self.btn_csv.clicked.connect(self.manual_analize) #lambda: self.level_up(limit=100))
         self.btn_run.pressed.connect(self.analize_run)
+        self.btn_b_sel = CustomButton(self.frm_loc, name="b_sel", size=36, checkable=True)
         self.btn_c_add = CustomButton(self.frm_loc, name="c_add", size=36, checkable=True)
         self.btn_c_del = CustomButton(self.frm_loc, name="c_del", size=36, checkable=False, visible=False)
         self.btn_loc = MultiStateButton(self.frm_loc, name="xy", size=55, hsize=36, states=[0, 1, 3])
         self.btn_mode = CustomButton(self.frm_b_options, name="mode", size=50, hsize=36, checkable=True)
+        b_sel_lay = QHBoxLayout()
+        b_sel_lay.setContentsMargins(0, 0, 0, 0)
+        b_sel_lay.setSpacing(0)
+        b_sel_lay.addWidget(self.btn_b_sel)
+        self.frm_b_sel.setLayout(b_sel_lay)
         self.frm_b_options.layout().addWidget(self.btn_mode)
         self.frm_loc.layout().addWidget(self.btn_loc)
         self.frm_loc.layout().addWidget(self.btn_c_add)
         self.frm_loc.layout().addWidget(self.btn_c_del)
+        self.btn_b_sel.clicked.connect(lambda: self.mt.init("b_pick"))
         self.btn_loc.clicked.connect(self.loc_change)
-        self.btn_c_add.clicked.connect(self.loc_c_init)
+        self.btn_c_add.clicked.connect(lambda: self.mt.init("c_loc_add"))
         self.btn_c_del.pressed.connect(self.loc_c_del)
         self.btn_mode.clicked.connect(self.mode_change)
-        self.localizing = False
         self.cat = ""
         self.cat_changed.connect(self.cat_change)
         ss = f"background-image:url({UI_PATH}a1.png)"
@@ -183,6 +189,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
         self.app.installEventFilter(self)  # Nasłuchiwanie zmiany tytułu okna QGIS
         self.canvas.extentsChanged.connect(self.extent_changed)
+        self.lyr = LayerManager(dlg=self)
+        self.mt = MapToolManager(dlg=self, canvas=self.canvas)
 
     def eventFilter(self, obj, event):
         if obj is iface.mainWindow() and event.type() == QEvent.WindowTitleChange:
@@ -263,6 +271,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
     def __setattr__(self, attr, val):
         """Przechwycenie zmiany atrybutu."""
         super().__setattr__(attr, val)
+        if attr == "a_idx":
+            self.frm_loc.setVisible(True) if val else self.frm_loc.setVisible(False)
         if attr == "gui_mode":
             self.frames_visibility()
             if val == "manual":
@@ -274,15 +284,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             elif val == "screen":
                 self.btn_lvl.setVisible(False)
                 self.pdf_create_screen(zoom_void=True)
-        if attr == "localizing":
-            if val:
-                self.btn_c_add.setChecked(True)
-                self.c_mt = AddCLoc(self, self.canvas)
-                self.canvas.setMapTool(self.c_mt)
-                self.c_mt.c_added.connect(self.loc_c_add)
-            else:
-                self.btn_c_add.setChecked(False)
-                iface.actionPan().trigger()
         if attr == "loc":
             if val == 2:
                 self.btn_loc.setEnabled(False)
@@ -432,13 +433,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         if self.a_idx is not None:
             self.adf_sel_active()
 
-    def loc_c_init(self):
-        """Steruje aktywacją maptool'a do dodawania lokalizacji C."""
-        self.localizing = self.btn_c_add.isChecked()
-
     def loc_c_add(self, point):
         """Dodaje lokalizację C."""
-        self.localizing = False
+        iface.actionPan().trigger()
         if not point:
             return
         self.btn_loc.setChecked(False)
@@ -459,6 +456,12 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.cdf_update()
         self.loc_change()
         self.canvas_update()
+
+    def b_pick(self, layer, feature):
+        iface.actionPan().trigger()
+        if not feature:
+            return
+        print(f"b_pick: {feature['id']}")
 
     def cdf_update(self, x=None, y=None):
         """Aktualizuje w cdf lokalizację C dla aktualnego a_idx."""
@@ -2397,10 +2400,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.canvas.zoomScale(cs + (cs * 0.4))
         self.canvas.refresh()
 
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape and self.localizing:
-            self.localizing = False
-
     def closeEvent(self, event):
         try:
             self.proj.layersWillBeRemoved.disconnect(self.layers_removing)
@@ -2417,6 +2416,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.lyr = None
         except Exception as err:
             print(f"closeEvent/self.lyr: {err}")
+        try:
+            self.mt = None
+        except Exception as err:
+            print(f"closeEvent/self.mt: {err}")
         try:
             self.app.removeEventFilter(self)
         except Exception as err:
