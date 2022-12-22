@@ -116,7 +116,7 @@ class PointDrawMapTool(QgsMapTool):
 
 class PointPickerMapTool(QgsMapToolIdentify):
     """Maptool do wspomaganego wybierania obiektu z wybranej warstwy."""
-    picked = pyqtSignal(object, object)
+    picked = pyqtSignal(object)
     cursor_changed = pyqtSignal(str)
 
     def __init__(self, dlg, canvas, layer, button, extra):
@@ -266,11 +266,11 @@ class PointPickerMapTool(QgsMapToolIdentify):
         """Zakończenie wybierania obiektu punktowego."""
         if not cancel and not deactivated:
             if len(result) > 0:
-                self.picked.emit(result[0].mLayer, result[0].mFeature)
+                self.picked.emit(result[0].mFeature)
             else:
-                self.picked.emit(None, None)
+                self.picked.emit(None)
         elif cancel and not deactivated:
-            self.picked.emit(None, None)
+            self.picked.emit(None)
         if self.marker:
             self.canvas.scene().removeItem(self.marker)
             self.marker = None

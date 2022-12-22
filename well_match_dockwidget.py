@@ -40,8 +40,8 @@ from rapidfuzz import fuzz
 from threading import Thread
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QDockWidget, QMessageBox, QHBoxLayout
-from qgis.PyQt.QtCore import Qt, pyqtSignal, QEvent, QVariant, QModelIndex, QItemSelectionModel, QTimer
-from qgis.core import QgsApplication, QgsProject, QgsVectorLayer, QgsFeature, QgsGeometry, QgsPointXY, QgsField, QgsRectangle
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QEvent, QModelIndex, QTimer, QSortFilterProxyModel
+from qgis.core import QgsProject, QgsFeature, QgsGeometry, QgsPointXY, QgsRectangle
 from qgis.utils import iface
 
 from .classes import DataFrameModel, ADfModel, PDfModel, run_in_main_thread, CustomButton, MultiStateButton
@@ -457,11 +457,16 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.loc_change()
         self.canvas_update()
 
-    def b_pick(self, layer, feature):
+    def b_pick(self, feature):
+        """Zaznacza wiersz w pdf z otworem B na podstawie podanego id."""
         iface.actionPan().trigger()
         if not feature:
             return
-        print(f"b_pick: {feature['id']}")
+        b_id = feature['id']
+        idx = self.tv_pdf.model().match(self.tv_pdf.model().index(0, 1), Qt.DisplayRole, b_id, flags=Qt.MatchExactly)
+        if idx:
+            self.tv_pdf.scrollTo(idx[0])
+            self.tv_pdf.setCurrentIndex(idx[0])
 
     def cdf_update(self, x=None, y=None):
         """Aktualizuje w cdf lokalizację C dla aktualnego a_idx."""

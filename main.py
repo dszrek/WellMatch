@@ -4,7 +4,8 @@ import pandas as pd
 
 from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox
 from PyQt5.QtCore import QDir
-from qgis.core import QgsApplication, QgsVectorLayer, QgsRasterLayer, QgsRectangle, QgsCoordinateReferenceSystem, QgsLayerTreeLayer
+from PyQt5.QtXml import QDomDocument
+from qgis.core import QgsProject, QgsMapLayerStyle, QgsApplication, QgsVectorLayer, QgsRasterLayer, QgsRectangle, QgsCoordinateReferenceSystem, QgsLayerTreeLayer
 from qgis.utils import iface
 
 from .import_data_dialog import ImportDataDialog
