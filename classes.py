@@ -239,7 +239,7 @@ class ADfModel(DataFrameModel):
             if pd.isnull(val) or val != val:
                 return '-'
             if index.column() == 2:
-                return str(val)
+                return str(int(val))
             if isinstance(val, (float, np.float32)) and index.column() >= 3:
                 return "%.2f" % val
             return str(val)
