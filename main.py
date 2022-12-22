@@ -66,6 +66,9 @@ class LayerManager:
             # QGIS ma otwarty projekt - sprawdzanie jego struktury:
             valid = self.structure_check()
             if valid:
+                # Poprawa stylów warstw, jeśli pochodzą ze starszej wersji wtyczki:
+                self.style_correction("A1B1","firstChildElement('labeling').firstChildElement('settings').firstChildElement('placement')", "placement", "3", f"{STYLE_PATH}a1b1.qml")
+                self.style_correction("B_INNE","firstChildElement('labeling').firstChildElement('settings').firstChildElement('rendering')", "limitNumLabels", "0", f"{STYLE_PATH}b_inne.qml")
                 return True
             else:
                 m_text = f"Brak wymaganych warstw lub grup warstw w otwartym projekcie. Naciśnięcie Tak spowoduje przebudowanie struktury projektu, naciśnięcie Nie przerwie proces uruchamiania wtyczki."
@@ -79,6 +82,22 @@ class LayerManager:
                         return result
                     else:
                         return True
+
+    def style_correction(self, lyr_name, element_ref, attr, bad_val, style_file):
+        """Aktualizuje styl warstwy, jeśli została utworzona przez starszą wersję wtyczki."""
+        layer = QgsProject.instance().mapLayersByName(lyr_name)[0]
+        if not layer:
+            return
+        style = QgsMapLayerStyle()
+        style.readFromLayer(layer)
+        xml_data = style.xmlData()
+        dom_document = QDomDocument()
+        dom_document.setContent(xml_data)
+        root_element = dom_document.documentElement()
+        attr_element = eval(f"root_element.{element_ref}")
+        attr_val = attr_element.attribute(attr)
+        if attr_val == bad_val:
+            layer.loadNamedStyle(style_file)
 
     def get_google_layer(self):
         """Tworzenie warstwy z podkładem Google Map."""
