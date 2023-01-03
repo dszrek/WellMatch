@@ -320,6 +320,8 @@ class PDfModel(DataFrameModel):
         header.resizeSection(0, 1)
         header.resizeSection(1, 60)
         header.resizeSection(10, 1)
+        self.tv.setColumnHidden(0, True)
+        self.tv.setColumnHidden(10, True)
 
     def data(self, index, role=Qt.DisplayRole):
         # super().data(index, role=Qt.DisplayRole)
@@ -379,9 +381,9 @@ class PDfModel(DataFrameModel):
         except Exception as e:
             print(e)
 
+
 class IDfModel(DataFrameModel):
     """Subklasa dataframemodel dla tableview wyświetlającą idf."""
-
     def __init__(self, df=pd.DataFrame(), tv=None, col_widths=[], col_names=[], parent=None):
         super().__init__(df, tv, col_names)
         self.tv = tv  # Referencja do tableview

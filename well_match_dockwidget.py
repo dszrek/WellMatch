@@ -1972,14 +1972,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.bdf = self.bcol_dtypes(self.bdf)
         self.save_bdf()
         check_files()
+        self.init_pdf_tv()
 
     def init_pdf_tv(self):
         """Konfiguracja tableview pdf."""
         # Kolumny ukryte: pierwsza kolumna - 'picked', ostatnia kolumna - a_idx
         tv_pdf_widths = [1, 60, 241, 30, 30, 30, 30, 30, 30, 30, 1]
         tv_pdf_headers = ['', 'ID','NAZWA', 'M', 'N', 'Z', 'Gł.', 'Rok', 'Śr.', 'Me.', '.']
-        t = pd.DataFrame({'': [np.nan], 'ID': ['1000'], 'NAZWA': ['A'], 'M': [1.0], 'N': [1.0], 'Z': [1.0], 'Gł.': [1.0], 'Rok': [1.0], 'Śr.': [1.0], 'Me.': [1.0], '.': [np.nan]})
-        self.pdf_mdl = PDfModel(df=t, tv=self.tv_pdf, col_widths=tv_pdf_widths, col_names=tv_pdf_headers)
+        self.pdf_mdl = PDfModel(df=pd.DataFrame(columns=tv_pdf_headers), tv=self.tv_pdf, col_widths=tv_pdf_widths, col_names=tv_pdf_headers)
         self.tv_pdf.selectionModel().selectionChanged.connect(lambda: self.pdf_sel_change(zoom_void=True))
         self.tv_pdf.doubleClicked.connect(lambda: self.copy_to_clipboard(self.tv_pdf, self.pdf_mdl))
 
