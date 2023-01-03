@@ -624,7 +624,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         """Usunięcie folderu 'data' wraz z zawartością po zakończeniu analizy wstępnej i ponowne załadowanie wszystkich dataframe'ów."""
         data_path = f"{self.lab_path_content.text()}{os.path.sep}data"
         shutil.rmtree(data_path, ignore_errors=True)
-        check_files()
         self._block(False)
         self.project_reset()
         # a_path = f"{self.lab_path_content.text()}{os.path.sep}adf.parq"

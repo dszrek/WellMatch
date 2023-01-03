@@ -289,7 +289,6 @@ def open_project():
         return
     dlg.lab_path_content.setText(PATH_PRJ)
     df_load()
-    dlg.adf_sel_change()
 
 def df_load():
     """Załadowanie dataframe'ów projektu."""
@@ -322,6 +321,7 @@ def df_load():
             print(err)
     else:
         dlg.abdf = load_parq(f_path)
+        dlg.adf_sel_change()
     # Próba wczytania badf:
     f_path = f"{PATH_PRJ}{os.path.sep}badf.parq"
     if not os.path.isfile(f_path):
