@@ -1,12 +1,29 @@
 # Changelog (dziennik zmian):
 
+## [0.10.0] - 2023-01-03
+
+### Dodano
+- Dodatkowy tryb wyświetlania otworów B - wyświetlane są otwory z przestrzennego zakresu widoku mapy.
+- Narzędzie mapowe do ręcznego zaznaczania otworu B z poziomu mapy.
+- Podpowiedzi tekstowe (tooltip) dla przycisków - pojawiają się po zatrzmaniu kursora nad danym przyciskiem.
+
+### Zmieniono
+- Zwiększono rozdzielczość ikonki wtyczki.
+- Uporządkowano elementy interfejsu użytkownika.
+
+### Poprawiono
+- Umożliwiono analizę baz danych, które są całkowicie pozbawione wartości parametrów: Z, Głęb., Rok.
+- Poprawiono błędy związane z interpretowaniem parametrów o wartości liczbowej 0 jako fałsz (False).
+- Opróżnienie aktywnej kategorii z otworów A powoduje automatyczne przejście do innej niepustej kategorii.
+- Uniemożliwiono nadawanie lokalizacji współrzędnych XY wg otworu B, jeśli otwór A nie jest połączony z otworem B.
+
 ## [0.9.8] - 2022-11-28
 
 ### Zmieniono
-- Zmodyfikowano działanie funkcji sprawdzającej, czy niezbędne dla działania wtyczki biblioteki python są zainstalowane. W razie stwierdzenia braku wymaganej biblioteki (bądź zainstalowanej zbyt "starej" wersji), jest ona instalowana z pliku .whl dołączonego do dystrybucji wtyczki (folder ".\libs"). Konieczność instalowania bibliotek z dołączonych plików wynika z blokowania przez proxy sieci PIG-PIB preferowanego instalatora sieciowego "pip".
+- Zmodyfikowano działanie funkcji sprawdzającej, czy niezbędne dla działania wtyczki biblioteki python są zainstalowane. W razie stwierdzenia braku wymaganej biblioteki (bądź zainstalowanej zbyt "starej" wersji), jest ona instalowana z pliku .whl pobieranego z repozytorium 'http://dszrek.github.io/libs/'. Konieczność instalowania bibliotek z udostępnionych plików wynika z blokowania przez proxy sieci PIG-PIB domyślnego instalatora sieciowego "pip".
 
 ### Poprawiono
-- Zapewniono zgodność działania wtyczki na wersjach QGIS opartych o python 3.9 (wersje QGIS nowsze niż 3.16.6).
+- Zapewniono zgodność działania wtyczki na wersjach QGIS opartych o Python 3.9 (wersje QGIS nowsze niż 3.16.6). Niedziałająca w wersji Python 3.9 biblioteka 'pyarrow' została zastąpiona przez 'fastparquet'.
 
 ## [0.9.7] - 2021-07-07
 
@@ -65,10 +82,6 @@
 - Analiza wstępna nie zawiesza się już po 3 fazie z błędem typu "ValueError: Shape of passed values is (2463, 2), indices imply (2399, 2))". Błąd pojawiał się przy wykonywaniu analizy, po przejściu do kolejnego projektu bez wyłączania wtyczki. Wtyczka "pamiętała" dane z poprzedniego projektu, co było powodem występowania błędów w kolejnej analizie.
 - Można zacząć importowanie danych od bazy B (klikając na przycisk "Importuj bazę B"). Wcześniej import bazy B przed zaimportowaniem bazy A powodował wystąpienie błędu, który uniemożliwiał przeprowadzenie analizy wstępnej.
 - Poprawiono wiele drobnych błędów wpływających na stabilność działania analizy wstępnej.
-
-## [0.9.11] - 2021-05-10 (hotfix 1)
-
-### Poprawiono
 - Parametr N uzyskuje wartość 0.0, jeśli w otworze A lub B brak jest nazwy (pusta wartość w nazwie otworu powodowała błąd analizy wstępnej).
 
 ## [0.9.1] - 2021-05-10

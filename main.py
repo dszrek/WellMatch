@@ -1,15 +1,14 @@
 #!/usr/bin/python
 import os
 import pandas as pd
-import numpy as np
 
 from PyQt5.QtWidgets import QFileDialog, QDialog, QMessageBox
-from PyQt5.QtCore import QDir, QVariant
-from qgis.core import QgsProject, QgsApplication, QgsVectorLayer, QgsRasterLayer, QgsRectangle, QgsGeometry, QgsWkbTypes, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsPointXY, QgsField, QgsLayerTreeGroup, QgsLayerTreeLayer
+from PyQt5.QtCore import QDir
+from PyQt5.QtXml import QDomDocument
+from qgis.core import QgsProject, QgsMapLayerStyle, QgsApplication, QgsVectorLayer, QgsRasterLayer, QgsRectangle, QgsCoordinateReferenceSystem, QgsLayerTreeLayer
 from qgis.utils import iface
 
 from .import_data_dialog import ImportDataDialog
-from .classes import DataFrameModel
 
 PATH_PRJ = None
 STYLE_PATH = os.path.dirname(os.path.realpath(__file__)) + os.path.sep + 'styles' + os.path.sep
@@ -44,16 +43,17 @@ class LayerManager:
             {'name': 'WellMatch', 'level': 1, 'layers': ['A_1', 'A_2', 'B_1', 'B_2', 'C', 'A1B1', 'A1B2', 'A2B1', 'B_INNE']}
             ]
         self.lyrs = [
-            {"source": "memory", "name": "A_1", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "a1.qml"},
-            {"source": "memory", "name": "A_2", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "a2.qml"},
-            {"source": "memory", "name": "B_1", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "b1.qml"},
-            {"source": "memory", "name": "B_2", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "b2.qml"},
-            {"source": "memory", "name": "C", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "c.qml"},
-            {"source": "memory", "name": "A1B1", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string", "attrib": [QgsField('m_dist', QVariant.Int, "int")], "style": "a1b1.qml"},
-            {"source": "memory", "name": "A1B2", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string", "attrib": [QgsField('m_dist', QVariant.Int, "int")], "style": "a1b2.qml"},
-            {"source": "memory", "name": "A2B1", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string", "attrib": [QgsField('m_dist', QVariant.Int, "int")], "style": "a2b1.qml"},
-            {"source": "memory", "name": "B_INNE", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string", "attrib": [QgsField('id', QVariant.String, "string", 0), QgsField('name', QVariant.String, "string", 0)], "style": "b_inne.qml"}
+            {"source": "memory", "name": "A_1", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string&field=name:string&index=yes", "style": "a1.qml"},
+            {"source": "memory", "name": "A_2", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string&field=name:string&index=yes", "style": "a2.qml"},
+            {"source": "memory", "name": "B_1", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string&field=name:string&index=yes", "style": "b1.qml"},
+            {"source": "memory", "name": "B_2", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string&field=name:string&index=yes", "style": "b2.qml"},
+            {"source": "memory", "name": "C", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string&field=name:string&index=yes", "style": "c.qml"},
+            {"source": "memory", "name": "A1B1", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string&field=m_dist:int", "style": "a1b1.qml"},
+            {"source": "memory", "name": "A1B2", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string&field=m_dist:int", "style": "a1b2.qml"},
+            {"source": "memory", "name": "A2B1", "root": False, "parent": "WellMatch", "visible": True, "uri": "LineString?crs=epsg:2180&field=id:string&field=m_dist:int", "style": "a2b1.qml"},
+            {"source": "memory", "name": "B_INNE", "root": False, "parent": "WellMatch", "visible": True, "uri": "Point?crs=epsg:2180&field=id:string&field=name:string&index=yes", "style": "b_inne.qml"}
             ]
+        self.lyr_vis = [["B_INNE", True]]
         self.lyr_cnt = len(self.lyrs)
         self.lyrs_names = [i for s in [[v for k, v in d.items() if k == "name"] for d in self.lyrs] for i in s]
 
@@ -67,6 +67,9 @@ class LayerManager:
             # QGIS ma otwarty projekt - sprawdzanie jego struktury:
             valid = self.structure_check()
             if valid:
+                # Poprawa stylów warstw, jeśli pochodzą ze starszej wersji wtyczki:
+                self.style_correction("A1B1","firstChildElement('labeling').firstChildElement('settings').firstChildElement('placement')", "placement", "3", f"{STYLE_PATH}a1b1.qml")
+                self.style_correction("B_INNE","firstChildElement('labeling').firstChildElement('settings').firstChildElement('rendering')", "limitNumLabels", "0", f"{STYLE_PATH}b_inne.qml")
                 return True
             else:
                 m_text = f"Brak wymaganych warstw lub grup warstw w otwartym projekcie. Naciśnięcie Tak spowoduje przebudowanie struktury projektu, naciśnięcie Nie przerwie proces uruchamiania wtyczki."
@@ -80,6 +83,22 @@ class LayerManager:
                         return result
                     else:
                         return True
+
+    def style_correction(self, lyr_name, element_ref, attr, bad_val, style_file):
+        """Aktualizuje styl warstwy, jeśli została utworzona przez starszą wersję wtyczki."""
+        layer = QgsProject.instance().mapLayersByName(lyr_name)[0]
+        if not layer:
+            return
+        style = QgsMapLayerStyle()
+        style.readFromLayer(layer)
+        xml_data = style.xmlData()
+        dom_document = QDomDocument()
+        dom_document.setContent(xml_data)
+        root_element = dom_document.documentElement()
+        attr_element = eval(f"root_element.{element_ref}")
+        attr_val = attr_element.attribute(attr)
+        if attr_val == bad_val:
+            layer.loadNamedStyle(style_file)
 
     def get_google_layer(self):
         """Tworzenie warstwy z podkładem Google Map."""
@@ -155,9 +174,6 @@ class LayerManager:
                 return False
             if l_dict["source"] == "memory":
                 lyr.setCustomProperty("skipMemoryLayersCheck", 1)
-                pr = lyr.dataProvider()
-                pr.addAttributes(l_dict["attrib"])
-                lyr.updateFields()
             if "crs" in l_dict:
                 lyr.setCrs(CRS_1992)
             dlg.proj.addMapLayer(lyr, False)
@@ -305,6 +321,7 @@ def df_load():
             print(err)
     else:
         dlg.abdf = load_parq(f_path)
+        dlg.adf_sel_change()
     # Próba wczytania badf:
     f_path = f"{PATH_PRJ}{os.path.sep}badf.parq"
     if not os.path.isfile(f_path):
