@@ -40,11 +40,11 @@ from rapidfuzz import fuzz
 from threading import Thread
 from qgis.PyQt import uic
 from qgis.PyQt.QtWidgets import QDockWidget, QMessageBox, QHBoxLayout
-from qgis.PyQt.QtCore import Qt, pyqtSignal, QEvent, QModelIndex, QTimer, QSortFilterProxyModel
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QEvent, QModelIndex, QTimer
 from qgis.core import QgsProject, QgsFeature, QgsGeometry, QgsPointXY, QgsRectangle
 from qgis.utils import iface
 
-from .classes import DataFrameModel, ADfModel, PDfModel, run_in_main_thread, CustomButton, MultiStateButton
+from .classes import ADfModel, PDfModel, CustomButton, MultiStateButton, run_in_main_thread
 from .maptools import MapToolManager
 from .main import LayerManager, init_extent, check_files, df_load
 
@@ -56,7 +56,6 @@ FORM_CLASS, _ = uic.loadUiType(os.path.join(
 class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     closingPlugin = pyqtSignal()
-    cat_changed = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super(WellMatchDockWidget, self).__init__(parent)
@@ -75,15 +74,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.gui_mode = "init"
         self.b_mode = None
         self.btn_export_joint.setVisible(False)
-        self.first_sel = True
         self.sel_change_void = False
         self.analizing = False
         self.btn_csv.setVisible(False)
-        self.btn_cat_o.clicked.connect(lambda: self.set_cat('o'))
-        self.btn_cat_a.clicked.connect(lambda: self.set_cat('a'))
-        self.btn_cat_p.clicked.connect(lambda: self.set_cat('p'))
-        self.btn_cat_u.clicked.connect(lambda: self.set_cat('u'))
-        self.btn_cat_w.clicked.connect(lambda: self.set_cat('w'))
+        self.btn_cat_o.clicked.connect(lambda: setattr(self, 'cat', 'o'))
+        self.btn_cat_a.clicked.connect(lambda: setattr(self, 'cat', 'a'))
+        self.btn_cat_p.clicked.connect(lambda: setattr(self, 'cat', 'p'))
+        self.btn_cat_u.clicked.connect(lambda: setattr(self, 'cat', 'u'))
+        self.btn_cat_w.clicked.connect(lambda: setattr(self, 'cat', 'w'))
         self.btn_lvl.clicked.connect(self.level_up)
         self.btn_link_change.clicked.connect(self.link_change)
         self.btn_trash.clicked.connect(lambda: self.well_set('o'))
@@ -112,8 +110,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.btn_c_add.clicked.connect(lambda: self.mt.init("c_loc_add"))
         self.btn_c_del.pressed.connect(self.loc_c_del)
         self.btn_mode.clicked.connect(self.mode_change)
-        self.cat = ""
-        self.cat_changed.connect(self.cat_change)
         ss = f"background-image:url({UI_PATH}a1.png)"
         ss = ss.replace("\\", "/")
         self.icon_a.setStyleSheet(ss)
@@ -147,6 +143,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.a2_idx = None
         self.a_id = None
         self.sel_case = 0
+        self.cat = None
         self.loc = 0
         self.b1_id = None
         self.a_changed = False
@@ -277,13 +274,12 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.frames_visibility()
             if val == "manual":
                 self.b_mode = "top"
-        if attr == "b_mode":
+        if attr == "b_mode" and val:
             if val == "top":
                 self.btn_lvl.setVisible(True)
                 self.pdf_create_top(zoom_void=True)
             elif val == "screen":
                 self.btn_lvl.setVisible(False)
-                self.pdf_create_screen(zoom_void=True)
         if attr == "loc":
             if val == 2:
                 self.btn_loc.setEnabled(False)
@@ -302,7 +298,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.btn_join.setEnabled(val)
         if attr == "sel_case":
             if val == 1:  # Jest zaznaczony otwór B obecnie połączony z otworem A
-                self.loc_establish()
                 if len(self.sel_pdf) > 0:
                     b_x = self.sel_pdf['X'].values[0]
                     b_y = self.sel_pdf['Y'].values[0]
@@ -315,8 +310,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                     if self.a_idx is not None:
                         self.btn_loc.list_del(1)
             self.btn_link_change.setEnabled(False) if val < 2 else self.btn_link_change.setEnabled(True)
-        if attr == "cat":
-            self.cat_changed.emit(val)
+        if attr == "cat" and val is not None:
+            self.cat_change(val)
         if attr == "adf_o":
             self.btn_cat_o.setVisible(True) if len(self.adf_o) > 0 else self.btn_cat_o.setVisible(False)
             self.btn_cat_o.setText(f"Odrzucone ({len(self.adf_o)})")
@@ -340,8 +335,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         sel_tv.clearCurrentIndex()
         sel_tv.clearSelection()
         self.tv_adf.scrollToTop()
-        self.frm_solver.setVisible(False)
-        self.frm_b.setVisible(False)
 
     def adf_sel_first(self):
         """Zaznacza pierwszy otwór na liście tv_adf."""
@@ -364,9 +357,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
 
     def set_cat(self, _cat):
         """Inicjacja zmiany aktywnej kategorii."""
-        self.adf_mdl.sort_reset()  # Wyłączenie sortowania po kolumnie
-        self.adf_unsel()
-        self.adf_sel_first()
         self.cat = _cat
 
     def cat_btns_update(self, _btn):
@@ -378,9 +368,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                 self.btn_cat_w : self.adf_w}
         for btn, df in btns.items():
             if btn == _btn:
+                if len(df) == 0:
+                    # Ustawiona kategoria nie ma otworów - należy zmienić kategorię
+                    self.set_first_cat(update=False)
+                    return
                 btn.setChecked(True)
                 df = df.sort_values(by=['Me', 'Avg'], ascending=[False, False]).reset_index(drop=True)
                 self.adf_mdl.setDataFrame(self.a_col(df))
+                self.adf_sel_first()
                 if _btn == self.btn_cat_o:
                     self.btn_trash.setVisible(False)
                     self.btn_halt.setVisible(True)
@@ -539,9 +534,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.batmp = []
         print("badf_saved")
 
-    def set_first_cat(self):
+    def set_first_cat(self, update=True):
         """Ustawienie pierwszej niepustej kategorii."""
-        self.cat_upd()
+        if update:
+            self.cat_upd()
         cats = {'a' : self.adf_a,
                 'w' : self.adf_w,
                 'p' : self.adf_p,
@@ -588,7 +584,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self._status(f"Czas działania wstępnej analizy: {tm.strftime('%H:%M:%S', tm.gmtime(te-ts))}")
 
     def project_reset(self, load=True):
-        self.first_sel = True
         self.analizing = False
         self.abtmp = []
         self.batmp = []
@@ -600,7 +595,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.a_h = None
         self.a_r = None
         self.a_pnt = None
-        # self.pdf_sel = False
+        self.pdf_sel = False
         self.a2_idx = None
         self.b1_id = None
         self.adf = pd.DataFrame()
@@ -1351,62 +1346,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         pdf_1 = self.estimate_bin_manual(pdf_1, manual=True)
         pdf_1.to_csv(f"{self.lab_path_content.text()}{os.path.sep}{self.a_idx}.csv", index=False, encoding="cp1250", sep=";")
 
-    def clear_adf(self):
-        """Czyszczenie zmiennych i widgetów po odznaczeniu aktywnego otworu w adf."""
-        # Czyszczenie zmiennych:
-        self.a_idx = None
-        self.a_x = float()
-        self.a_y = float()
-        self.a_z = None
-        self.a_h = None
-        self.a_r = None
-        self.a_pnt = None
-        # Czyszczenie widgetów:
-        self.lab_a_id.setText("")
-        self.lab_a_name.setText("")
-        self.lab_a_z.setText("")
-        self.lab_a_h.setText("")
-        self.lab_a_r.setText("")
-        self.lab_b1_id.setText("")
-        self.lab_b1_name.setText("")
-        self.lab_b1_z.setText("")
-        self.lab_b1_h.setText("")
-        self.lab_b1_r.setText("")
-        self.lab_b2_id.setText("")
-        self.lab_b2_name.setText("")
-        self.lab_b2_z.setText("")
-        self.lab_b2_h.setText("")
-        self.lab_b2_r.setText("")
-        self.lab_b_id.setText("")
-        self.lab_b_name.setText("")
-        self.lab_b_z.setText("")
-        self.lab_b_h.setText("")
-        self.lab_b_r.setText("")
-        # Czyszczenie pdf:
-        self.clear_pdf()
-
-    def clear_pdf(self):
-        """Czyszczenie zmiennych i widgetów po odznaczeniu aktywnego otworu w pdf."""
-        self.pdf = pd.DataFrame(columns=self.pdf.columns)
-        self.sel_pdf = pd.DataFrame(columns=self.sel_pdf.columns)
-        self.pck_pdf = pd.DataFrame(columns=self.pck_pdf.columns)
-        self.pck_adf = pd.DataFrame(columns=self.pck_adf.columns)
-        self.other_pdf = pd.DataFrame(columns=self.other_pdf.columns)
-        # self.pdf_sel = False
-        self.b_pnt = False
-        try:
-            self.pdf_mdl.setDataFrame(self.p_col(self.pdf))
-        except Exception as err:
-            print(f"clear_pdf: {err}")
-        self.frm_b.setVisible(False)
-        self.frm_solver_title.setVisible(False)
-        self.frm_a1.setVisible(False)
-        self.frm_b1.setVisible(False)
-        self.frm_b2.setVisible(False)
-        self.frm_b3.setVisible(False)
-        # Aktualizacja warstw qgis:
-        self.canvas_update()
-
     def adf_sel_change(self):
         """Zmiana zaznaczenia wiersza w tableview z adf."""
         self.a_changed = True
@@ -1414,14 +1353,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         sel_tv = self.tv_adf.selectionModel()
         index = sel_tv.currentIndex()
         if index.row() == -1:
-            # Nie ma zaznaczonego wiersza w adf_tv - czyszczenie UI:
-            self.frm_a_options.setVisible(False)
-            self.adf_unsel()
-            if self.first_sel:
-                self.init_pdf_tv()
-                self.first_sel = False
-            else:
-                self.clear_adf()
+            # Brak zaznaczenia wiersza w tv_adf
             return
         if self.gui_mode != "manual":
             # Zablokowanie wykonywania funkcji przed wykonaniem analizy wstępnej
@@ -1436,7 +1368,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             self.a_idx = self.adf.index[self.adf['ID'].astype(str) == str(a_id)][0]
         except Exception as err:
             self.a_idx = None
-            self.clear_adf()
             return
         # Stworzenie ramki informacyjnej dla konsoli pythona:
         id_long = len(str(a_id)) if a_id else 4
@@ -1489,16 +1420,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.btn_lvl.setText("PEŁNA ANALIZA [10]") if cur_lvl <= 1 else self.btn_lvl.setText("PEŁNA ANALIZA [100]")
         self.btn_lvl.setEnabled(True) if cur_lvl < 3 else self.btn_lvl.setEnabled(False)
         self.loc = int(self.adf.loc[self.a_idx, 'loc'])
-        # if self.loc == 2:
-        #     self.btn_loc.setEnabled(False)
-        #     self.btn_c_add.setVisible(False)
-        #     self.btn_c_del.setVisible(True)
-        # else:
-        #     self.btn_c_add.setVisible(True)
-        #     self.btn_c_del.setVisible(False)
-        #     self.btn_loc.setEnabled(True)
-        #     self.btn_loc.setChecked(False)
-        #     self.btn_loc.state = 2 if self.loc == 3 else self.loc
         self.pdf_create_screen() if self.b_mode == "screen" else self.pdf_create_top()
 
     def pdf_sel_change(self, zoom_void=False):
@@ -1691,6 +1612,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
     def pdf_create_top(self, zoom_void=False):
         """Tworzenie tymczasowego dataframe'a z otworami z bazy B połączonych z aktywnym otworem z bazy A."""
         if self.a_idx is None:
+            return
+        if len(self.abdf) == 0:
             return
         # Posprzątanie nieaktualnych danych:
         self.pdf = pd.DataFrame(columns=self.pdf.columns)
@@ -1925,14 +1848,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
             return
         tv_idx = self.pdf.index[~self.pdf['picked'].isna()].tolist()
         if len(tv_idx) == 0:
-            # self.pdf_sel = False
+            self.pdf_sel = False
             index = QModelIndex()
             self.tv_pdf.scrollToTop()
             self.frm_b1.setVisible(False)
             self.frm_b2.setVisible(False)
             self.frm_b3.setVisible(False)
         else:
-            # self.pdf_sel = True
+            self.pdf_sel = True
             index = self.tv_pdf.model().index(tv_idx[0], 0)
             self.tv_pdf.scrollTo(index)
         self.tv_pdf.setCurrentIndex(index)
@@ -1960,8 +1883,6 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.adf_mdl = ADfModel(df=self.a_col(self.adf), tv=self.tv_adf, col_widths=tv_adf_widths, col_names=tv_adf_headers)
         self.tv_adf.selectionModel().selectionChanged.connect(self.adf_sel_change)
         self.tv_adf.doubleClicked.connect(lambda: self.copy_to_clipboard(self.tv_adf, self.adf_mdl))
-        self.first_sel = True
-        self.adf_sel_change()
         self.status(f"Do uzgodnienia wyznaczono {len(self.adf.index)} otworów.")
         if len(self.adf) > 0:
             self.set_first_cat()

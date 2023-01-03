@@ -289,6 +289,7 @@ def open_project():
         return
     dlg.lab_path_content.setText(PATH_PRJ)
     df_load()
+    dlg.adf_sel_change()
 
 def df_load():
     """Załadowanie dataframe'ów projektu."""
