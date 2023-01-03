@@ -421,9 +421,10 @@ class IDfModel(DataFrameModel):
             return dt
         return QVariant()
 
+
 class CustomButton(QToolButton):
     """Fabryka guzików."""
-    def __init__(self, *args, size=25, hsize=0, name="", icon="", visible=True, enabled=True, checkable=False, tooltip=""):
+    def __init__(self, *args, size=25, hsize=0, name="", icon="", visible=True, enabled=True, checkable=False, tooltip="", tooltip_on=None):
         super().__init__(*args)
         name = icon if len(icon) > 0 else name
         self.shown = visible  # Dubluje setVisible() - .isVisible() może zależeć od rodzica
@@ -431,11 +432,33 @@ class CustomButton(QToolButton):
         self.setEnabled(enabled)
         self.setCheckable(checkable)
         self.setToolTip(tooltip)
+        self.tooltip_on = tooltip_on
         self.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.setAutoRaise(True)
-        self.setStyleSheet("QToolButton {border: none}")
+        self.setStyleSheet("""
+                            QToolButton {
+                                border: none;
+                            }
+                            QToolTip {
+                                border: 1px solid rgb(100, 100, 100);
+                                padding: 5px;
+                                background-color: rgb(250, 250, 250);
+                                color: rgb(0, 0, 0);
+                            }
+                        """)
         self.set_icon(name, size, hsize)
         self.setMouseTracking(True)
+        if self.tooltip_on:
+            self.tooltip = tooltip
+            self.toggled.connect(self.toggle)
+
+    def toggle(self, checked):
+        """Aktualizacja tooltip'u po zmianie stanu przycisku."""
+        self.setToolTip(self.tooltip_on) if checked else self.setToolTip(self.tooltip)
+
+    def set_tooltip(self, txt):
+        """Ustawienie tooltip'a."""
+        self.setToolTip(txt)
 
     def set_icon(self, name, size=25, hsize=0):
         """Ładowanie ikon do guzika."""
@@ -459,20 +482,32 @@ class CustomButton(QToolButton):
 
 class MultiStateButton(QToolButton):
     """Przycisk z większą niż 2 ilością stanów."""
-    def __init__(self, *args, size=25, hsize=0, name="", icon="", states=[0, 1, 2], visible=True, enabled=True, tooltip=""):
+    def __init__(self, *args, size=25, hsize=0, name="", icon="", visible=True, enabled=True, states_tooltips={0: None, 1: None, 2: None}, disabled_states=[]):
         super().__init__(*args)
         self.name = icon if len(icon) > 0 else name
         self.shown = visible  # Dubluje setVisible() - .isVisible() może zależeć od rodzica
         self.setVisible(visible)
         self.setEnabled(enabled)
         self.setCheckable(False)
-        self.setToolTip(tooltip)
         self.size = size
         self.hsize = hsize
-        self.states = states
+        self.states_tooltips = states_tooltips
+        self.tooltips = list(states_tooltips.values())
+        self.states = list(states_tooltips.keys())
+        self.disable_states(disabled_states)
         self.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.setAutoRaise(True)
-        self.setStyleSheet("QToolButton {border: none}")
+        self.setStyleSheet("""
+                            QToolButton {
+                                border: none;
+                            }
+                            QToolTip {
+                                border: 1px solid rgb(100, 100, 100);
+                                padding: 5px;
+                                background-color: rgb(250, 250, 250);
+                                color: rgb(0, 0, 0);
+                            }
+                        """)
         self.setMouseTracking(True)
 
     def __setattr__(self, attr, val):
@@ -483,11 +518,14 @@ class MultiStateButton(QToolButton):
                 self.state = self.states[0]
                 return
             self.set_icon()
-        if attr == "states":
-            if len(val) == 0:
-                self.states = [0]
-                return
-            self.state = val[0]
+            self.setToolTip(self.tooltips[self.states.index(val)])
+
+    def disable_states(self, disabled_states):
+        """Wyłącza wartości z listy self.states, aby nie można było ich wybrać klikając na przycisk."""
+        if not disabled_states:
+            return
+        for disable_state in disabled_states:
+            self.list_del(disable_state)
 
     def nextCheckState(self):
         """Ustawia następną wartość self.state po kliknięciu na przycisk."""
@@ -525,11 +563,16 @@ class MultiStateButton(QToolButton):
         temp = self.states
         temp.append(val)
         self.states = sorted(temp)
+        idx = self.states.index(val)
+        tooltip = self.states_tooltips[val]
+        self.tooltips.insert(idx, tooltip)
 
     def list_del(self, val):
         """Kasuje wartość (jeśli jeszcze jej nie ma) z listy dozwolonych stanów przycisku."""
         if not val in self.states:  # Stanu już nie ma na liście
             return
+        idx = self.states.index(val)
+        del self.tooltips[idx]
         self.states.remove(val)
 
     def state_reset(self):

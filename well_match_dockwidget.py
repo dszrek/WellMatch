@@ -93,11 +93,11 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.btn_export_joint.clicked.connect(self.export_joint)
         self.btn_csv.clicked.connect(self.manual_analize) #lambda: self.level_up(limit=100))
         self.btn_run.pressed.connect(self.analize_run)
-        self.btn_b_sel = CustomButton(self.frm_loc, name="b_sel", size=36, checkable=True)
-        self.btn_c_add = CustomButton(self.frm_loc, name="c_add", size=36, checkable=True)
-        self.btn_c_del = CustomButton(self.frm_loc, name="c_del", size=36, checkable=False, visible=False)
-        self.btn_loc = MultiStateButton(self.frm_loc, name="xy", size=55, hsize=36, states=[0, 1, 3])
-        self.btn_mode = CustomButton(self.frm_b_options, name="mode", size=50, hsize=36, checkable=True)
+        self.btn_b_sel = CustomButton(self.frm_loc, name="b_sel", size=36, checkable=True, tooltip="wybór otworu B z obszaru mapy")
+        self.btn_c_add = CustomButton(self.frm_loc, name="c_add", size=36, checkable=True, tooltip="wybór współrzędnych XY z obszaru mapy")
+        self.btn_c_del = CustomButton(self.frm_loc, name="c_del", size=36, checkable=False, visible=False, tooltip="usunięcie ustalonej na mapie lokalizacji otworu")
+        self.btn_loc = MultiStateButton(self.frm_loc, name="xy", size=55, hsize=36, states_tooltips={0: "współrzędne XY są pobrane z otworu A", 1: "współrzędne XY są pobrane z otworu B", 2: "współrzędne XY wybrano z mapy", 3: "współrzędne XY nie zostały ustalone"}, disabled_states=[2])
+        self.btn_mode = CustomButton(self.frm_b_options, name="mode", size=50, hsize=36, checkable=True, tooltip="tryb wyświetlania najlepiej dopasowanych otworów B", tooltip_on="tryb wyświetlania wszystkich otworów B z przestrzennego zakresu widoku mapy")
         b_sel_lay = QHBoxLayout()
         b_sel_lay.setContentsMargins(0, 0, 0, 0)
         b_sel_lay.setSpacing(0)
@@ -289,10 +289,13 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                 self.btn_loc.setEnabled(False)
                 self.btn_c_add.setVisible(False)
                 self.btn_c_del.setVisible(True)
+                self.btn_loc.list_add(2)
+                self.btn_loc.state = val
             else:
                 self.btn_c_add.setVisible(True)
                 self.btn_c_del.setVisible(False)
                 self.btn_loc.setEnabled(True)
+                self.btn_loc.list_del(2)
                 self.btn_loc.state = val
         if attr == "pdf_sel":
             self.btn_anal.setEnabled(val)
@@ -1719,6 +1722,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         picked = self.pdf.copy()
         picked['a_idx'] = picked['a_idx'].fillna(-1)  # Uzupełnienie pustych wartości w kolumnie a_idx
         picked = picked[picked['a_idx'] == self.a_idx]  # Wybranie wiersza, który ma id otworu A
+        self.btn_loc.list_add(1) if len(picked) > 0 else self.btn_loc.list_del(1)  # Dodanie lub skasowanie stanu guzika btn_loc dotyczącego lokalizacji wziętej z punktu B
         picked['picked'] = self.a_idx  # Stworzenie kolumny 'picked' z wartością 'a_idx'
         self.pdf['picked'] = np.nan  # Dodanie do pdf pustej kolumny 'picked'
         self.pdf['picked'].update(picked['picked'])  # Nadpisanie wiersza z pdf danymi z tymczasowego df 'picked'
@@ -2032,8 +2036,14 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
     def loc_change(self):
         """Zmiana w adf wartości 'loc' dla otworu A (0 - prawidłowe są wpółrzędne XY z otworu A, 1 - prawidłowe są z otworu B, 2 - lokalizacja C, 3 - nie ustalono prawidłowej lokalizacji)."""
         if self.btn_loc.isEnabled():
+            # Guzik jest włączony, co wyklucza self.loc == 2, należy zmienić self.loc na inną dostępną wartość
+            if self.loc == 2:
+                self.btn_loc.list_del(2)
+                self.btn_loc.state_reset()
             self.loc = self.btn_loc.state
         else:
+            # Guzik jest wyłaczony, powinien być ustalony self.loc = 2
+            self.btn_loc.list_add(2)
             self.loc = 2
         mask = self.adf.index == self.a_idx
         self.adf.loc[mask,['loc']] = self.loc
@@ -2201,7 +2211,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         c = QgsProject.instance().mapLayersByName("C")[0]
         pr = c.dataProvider()
         pr.truncate()
-        if self.loc != 2:
+        if self.loc != 2 or self.a_idx is None:
             # Otwór nie ma lokalizacji C
             c.triggerRepaint()
             return
