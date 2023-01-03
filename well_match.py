@@ -400,7 +400,7 @@ def missing_libs_install(libs):
         try:
             subprocess.check_call(['python', '-m', 'pip', 'install', lib_path, '--force-reinstall', '--no-dependencies'])
         except Exception as err:
-            QMessageBox.critical(None, "WellMatch", f"Brak możliwości instalacji biblioteki ({err}). Możesz zgłosić się o pomoc do autora - dszr@pgi.gov.pl")
+            QMessageBox.critical(None, "WellMatch", f"Brak możliwości instalacji biblioteki {lib[0]}. Problem może wynikać z tymczasowego blokowania instalacji przez proxy PIG-PIB. Proszę wykonać kilka dodatkowych prób uruchomienia wtyczki, a w razie dalszych niepowodzeń z instalacją bibliotek zgłosić się o pomoc do autora wtyczki - dszr@pgi.gov.pl")
             return
     QMessageBox.information(None, "WellMatch", f"Wszystkie wymagane biblioteki zostały zainstalowane. Należy uruchomić ponownie program QGIS.")
 
