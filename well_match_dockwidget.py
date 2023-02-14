@@ -1841,30 +1841,66 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         act_adf = self.adf[self.adf.index == self.a_idx]
         act_adf.update(pdf)
         self.adf.update(act_adf)
-        self.save_adf()
+        return True
+
+    def multi_link_remove(self):
+        """Ręczne usunięcie ustalonego połączenia między otworami, jeśli z powodu błędu kilka otworów B zostanie wybranych dla jednego otworu A."""
+        if len(self.sel_pdf) != 1:
+            return
+        # Kasowanie starego połączenia w otworze B:
+        try:
+            b_idx = int(self.sel_pdf.loc[0,'b_idx'])
+        except:
+            return False
+        self.bdf.iloc[b_idx,-1] = np.nan
         self.save_bdf()
-        self.loc_establish()
-        self.sel_change_void = True
-        self.a_id = self.adf.loc[self.a_idx, 'ID']
-        self.cat_upd()
+        # Kasowanie b_idx w otworze A:
+        try:
+            b_idx_in_adf = int(self.adf.iloc[self.a_idx,-1])
+        except:
+            return False
+        if b_idx_in_adf == b_idx:
+            self.adf.iloc[self.a_idx,-1] == np.nan
+            self.save_adf()
+        self.adf_sel_change()
+
+    def link_change(self):
+        """Ręczne ustalenie nowego połączenia między otworami."""
+        if self.btn_link_change.text() == 'SKASUJ POŁĄCZENIE':
+            if len(self.pdf[~self.pdf['picked'].isna()]) > 1:
+                # Kilka otworów B zostało wybranych dla A (błąd!) i usuwamy jedno błędne połączenie
+                self.multi_link_remove()
+            else:
+                self.well_set('w')
+        else:
+            self.well_set(self.cat)
 
     def export_joint(self):
         """Eksport tabeli z wynikami łączenia."""
         # Stworzenie tymczasowego dataframe'u z danymi otworów A:
         mask_a = self.adf['cat'] == 'p'
-        exp_adf = self.adf.loc[mask_a,['ID', 'X', 'Y', 'loc']].copy()
-        exp_adf.columns = ['ID_A', 'X_A', 'Y_A', 'loc']
+        exp_adf = self.adf.loc[mask_a,['ID', 'NAZWA', 'X', 'Y', 'Z', 'H', 'ROK', 'loc']].copy()
+        exp_adf.columns = ['ID_A', 'NAZWA_A', 'X_A', 'Y_A', 'Z_A', 'GŁ_A', 'ROK_A', 'loc']
         exp_adf = exp_adf.rename_axis('a_idx').reset_index()
         # Stworzenie tymczasowego dataframe'u z danymi otworów B:
         mask_b = ~self.bdf['a_idx'].isna()
-        exp_bdf = self.bdf.loc[mask_b, ['ID', 'X', 'Y', 'a_idx']].copy()
-        exp_bdf.columns = ['ID_B', 'X_B', 'Y_B', 'a_idx']
+        exp_bdf = self.bdf.loc[mask_b, ['ID', 'NAZWA', 'X', 'Y', 'Z', 'H', 'ROK', 'a_idx']].copy()
+        exp_bdf.columns = ['ID_B', 'NAZWA_B', 'X_B', 'Y_B', 'Z_B', 'GŁ_B', 'ROK_B', 'a_idx']
         # Stworzenie tymczasowego dataframe'u z danymi lokalizacji C:
         exp_cdf = self.cdf.copy()
         exp_cdf.columns = ['a_idx', 'X_C', 'Y_C']
         # Stworzenie dataframe'u ze złączenia powyższych:
         exp_df = exp_adf.merge(exp_bdf, on='a_idx', how='left')
         exp_df = exp_df.merge(exp_cdf, on='a_idx', how='left')
+        not_unique_df = exp_df[exp_df.duplicated(subset=['a_idx'], keep=False)].reset_index(drop=True)
+        if len(not_unique_df) > 0:
+            not_unique_a_idx = not_unique_df.iloc[0, 0]
+            not_unique_a_id = not_unique_df.iloc[0, 1]
+            not_unique_a_name = not_unique_df.iloc[0, 2]
+            QMessageBox.critical(None, "Eksport wyników", f"Otwór ({not_unique_a_id}) {not_unique_a_name} połączony jest z kilkoma otworami B. Wykasuj zbędne połączenia tak, aby pozostało jedno właściwe.")
+            self.a_idx = not_unique_a_idx
+            self.adf_sel_active()
+            return
         exp_df['loc'] = pd.to_numeric(exp_df['loc'], downcast='integer')
         # Dodanie kolumn ze współrzędnymi i wypełnienie danymi w zależności od wartości 'loc':
         conditions = [exp_df['loc'] == 0, exp_df['loc'] == 1, exp_df['loc'] == 2, exp_df['loc'] == 3]
@@ -1873,11 +1909,9 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         exp_df['X'] = np.select(conditions, choices_x, default=exp_df['X_A'])
         exp_df['Y'] = np.select(conditions, choices_y, default=exp_df['Y_A'])
         # Usunięcie niepotrzebnych kolumn:
-        exp_df = exp_df.drop(columns=['X_A', 'Y_A', 'X_B', 'Y_B', 'X_C', 'Y_C', 'a_idx'])
-        exp_df = exp_df[['ID_A', 'ID_B', 'X', 'Y', 'loc']]
-        exp_df.columns = ['ID_A', 'ID_B', 'X', 'Y', '0=A 1=B 2=C, 3=?']
-        # with pd.option_context('display.max_rows', None, 'display.max_columns', None): 
-        #     print(exp_df)
+        exp_df = exp_df.drop(columns=['X_C', 'Y_C', 'a_idx'])
+        exp_df = exp_df[['ID_A', 'ID_B', 'X', 'Y', 'loc', 'NAZWA_A', 'NAZWA_B', 'X_A', 'X_B', 'Y_A', 'Y_B', 'Z_A', 'Z_B', 'GŁ_A', 'GŁ_B', 'ROK_A', 'ROK_B']]
+        exp_df.columns = ['ID_A', 'ID_B', 'X', 'Y', '0=A 1=B 2=C, 3=?', 'NAZWA_A', 'NAZWA_B', 'X_A', 'X_B', 'Y_A', 'Y_B', 'Z_A', 'Z_B', 'GŁ_A', 'GŁ_B', 'ROK_A', 'ROK_B']
         path = self.lab_path_content.text()
         path = path.replace("/", "\\")
         exp_path = f"{path}{os.path.sep}export"
