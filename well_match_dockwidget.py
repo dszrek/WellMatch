@@ -142,8 +142,8 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         # self.pdf_sel = False
         self.a2_idx = None
         self.a_id = None
-        self.sel_case = 0
         self.cat = None
+        self.sel_case = 0
         self.loc = 0
         self.b1_id = None
         self.a_changed = False
@@ -293,10 +293,21 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                 self.btn_loc.setEnabled(True)
                 self.btn_loc.list_del(2)
                 self.btn_loc.state = val
-        if attr == "pdf_sel":
-            self.btn_anal.setEnabled(val)
-            self.btn_join.setEnabled(val)
         if attr == "sel_case":
+            self.btn_link_change.setEnabled(False) if val == 0 else self.btn_link_change.setEnabled(True)
+            if val == 0:
+                if self.cat == "o":
+                    self.btn_halt.setEnabled(True)
+                    self.btn_anal.setEnabled(False)
+                    self.btn_join.setEnabled(False)
+                elif self.cat == "w":
+                    self.btn_trash.setEnabled(True)
+                    self.btn_anal.setEnabled(False)
+                    self.btn_join.setEnabled(False)
+            else:
+                self.btn_halt.setEnabled(True)
+                self.btn_anal.setEnabled(True)
+                self.btn_join.setEnabled(True)
             if val == 1:  # Jest zaznaczony otwór B obecnie połączony z otworem A
                 if len(self.sel_pdf) > 0:
                     b_x = self.sel_pdf['X'].values[0]
@@ -309,8 +320,10 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
                 else:
                     if self.a_idx is not None:
                         self.btn_loc.list_del(1)
-            self.btn_link_change.setEnabled(False) if val < 2 else self.btn_link_change.setEnabled(True)
+            self.btn_link_change.setText("SKASUJ POŁĄCZENIE") if val < 2 else self.btn_link_change.setText("USTAL POŁĄCZENIE")
+            self.btn_link_change.setEnabled(False) if (self.cat == "o" or self.cat == "w") and val != 1 else self.btn_link_change.setEnabled(True)
         if attr == "cat" and val is not None:
+            self.btn_link_change.setEnabled(False) if (val == "o" or val == "w") and self.sel_case != 1 else self.btn_link_change.setVisible(True)
             self.cat_change(val)
         if attr == "adf_o":
             self.btn_cat_o.setVisible(True) if len(self.adf_o) > 0 else self.btn_cat_o.setVisible(False)
@@ -428,7 +441,7 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
         self.save_adf()
         if self.cat:
             self.cat_change(self.cat)
-        if self.a_idx is not None:
+        if self.a_idx is not None and not self.sel_change_void:
             self.adf_sel_active()
 
     def loc_c_add(self, point):
@@ -1729,57 +1742,97 @@ class WellMatchDockWidget(QDockWidget, FORM_CLASS):  # type: ignore
     def well_set(self, cat):
         """Zmienia kategorię otworu."""
         if cat == "o" or cat == "w":
-            # Otwór A został wstrzymany lub odrzucony - należy wykasować informacje o ustalonym połączeniu:
-            b_idx = None
-            try:
-                b_idx = int(self.adf.iloc[self.a_idx,-1])
-            except Exception as err:
-                print(f"Nieprawidłowy b_idx w adf ({err})")
-            self.adf.iloc[self.a_idx, -1] = np.nan
-            if b_idx:
-                self.bdf.iloc[b_idx,-1] = np.nan
+            # Otwór A zostanie odrzucony albo wstrzymany - należy zerwać połączenie z B, jeśli istnieje:
+            result = self.remove_old_link_B()
+            if not result:
+                return
         elif cat == "a" or cat == "p":
-            if self.sel_case == 3:  # Otwór B jest już zajęty
-                # Kasowanie starego połączenia w otworze B:
-                b_idx = int(self.adf.iloc[self.a_idx,-1])
-                self.bdf.iloc[b_idx,-1] = np.nan
-                # Kasowanie połączenie z innego otworu A i zmiana jego kategorii na 'w':
-                self.adf.iloc[self.a2_idx, -1] = np.nan
-                self.adf.loc[self.a2_idx,'cat'] = 'w'
-            # Otwór A został wskazany do analizy lub połączony z otworem B - należy zapisać informacje o ustalonym połączeniu:
-            pdf = self.sel_pdf.copy()
-            b_idx = int(pdf['b_idx'])
-            self.bdf.iloc[b_idx,-1] = self.a_idx
-            cols = pdf.columns.tolist()
-            pdf = pdf.drop(np.r_[cols[1:13], cols[20:]], 1)
-            # pdf['cat'] = str(cat)
-            pdf['a_idx'] = self.a_idx
-            pdf = pdf.set_index('a_idx', drop=True)
-            act_adf = self.adf[self.adf.index == self.a_idx]
-            act_adf.update(pdf)
-            self.adf.update(act_adf)
-        self.adf.loc[self.a_idx,'cat'] = cat
+            if self.sel_case == 2:
+                # Usuwamy stare połączenie, jeśli istnieje:
+                result = self.remove_old_link_B()
+                if not result:
+                    return
+                # Ustalamy nowe połączenie
+                result = self.make_link()
+                if not result:
+                    return
+            elif self.sel_case == 3:
+                # Usuwamy stare połączenie, jeśli istnieje:
+                result = self.remove_old_link_B()
+                if not result:
+                    return
+                result = self.remove_old_link_A()
+                if not result:
+                    return
+                # Ustalamy nowe połączenie
+                result = self.make_link()
+                if not result:
+                    return
+        self.adf.loc[self.a_idx,'cat'] = cat  # Zmiana kategorii otworu A w adf
         self.save_adf()
         self.save_bdf()
+        self.tv_adf.selectionModel().selectionChanged.disconnect(self.adf_sel_change)
         self.cat_upd()
+        self.tv_adf.selectionModel().selectionChanged.connect(self.adf_sel_change)
+        self.adf_sel_active()
+        self.adf_sel_change()
+        self.loc_establish()
 
-    def link_change(self):
-        """Ręczne ustalenie nowego połączenia między otworami."""
-        # Kasowanie starego połączenia w otworze B:
-        b_idx = None
+    def remove_old_link_B(self):
+        """Kasowanie aktualnego połączenia otworu A z B."""
+        link_pdf = self.pdf[~self.pdf['picked'].isna()].reset_index(drop=True)  # Dataframe z ustalonym połączeniem (lub połączeniami, jeśli błąd)
+        is_linked = True if len(link_pdf) > 0 else False
+        if not is_linked:
+            # Nie ma połączeń, które trzeba usunąć
+            return True
         try:
-            b_idx = int(self.adf.iloc[self.a_idx,-1])
-        except Exception as err:
-            print(f"Nieprawidłowy b_idx w adf ({err})")
-        if b_idx:
-            self.bdf.iloc[b_idx,-1] = np.nan
-        if self.sel_case == 3:  # Otwór B jest już zajęty
-            # Kasowanie połączenie z otworu A, który obecnie był połączony z otworem B i zmiana jego kategorii na 'w':
-            self.adf.iloc[self.a2_idx, -1] = np.nan
-            self.adf.loc[self.a2_idx,'cat'] = 'w'
-        # Otwór A został wskazany do analizy lub połączony z otworem B - należy zapisać informacje o ustalonym połączeniu:
+            b_idx = int(link_pdf.iloc[0, 0])
+        except:
+            return False
+        # Zrywamy ustalone połączenie:
+        if self.sel_case == 1:
+            m_text = f'<FONT COLOR="#000000">Czy chcesz zerwać połączenie otworu A:<br><FONT COLOR="#ff0000"><B>({self.lab_a_id.text()}) {self.lab_a_name.text()}</B></FONT><BR>z otworem B:<BR><FONT COLOR="#ff0000"><B>({link_pdf.loc[0, "ID"]}) {link_pdf.loc[0, "NAZWA"]}</B></FONT>?</FONT>'
+        else:
+            m_text = f'<FONT COLOR="#000000">Czy chcesz zerwać połączenie otworu A:<br><FONT COLOR="#ff0000"><B>({self.lab_a_id.text()}) {self.lab_a_name.text()}</B></FONT><BR>z otworem B:<BR><FONT COLOR="#0000ff"><B>({link_pdf.loc[0, "ID"]}) {link_pdf.loc[0, "NAZWA"]}</B></FONT>?</FONT>'
+        reply = QMessageBox.question(None, "WellMatch", m_text, QMessageBox.Yes, QMessageBox.No)
+        if reply == QMessageBox.No:
+            return False
+        self.bdf.iloc[b_idx,-1] = np.nan
+        self.adf.iloc[self.a_idx, -1] = np.nan
+        return True
+
+    def remove_old_link_A(self):
+        """Kasowanie starego połączenia w otworze B oraz kasowanie połączenia z innego otworu A i zmiana jego kategorii na 'w'."""
+        try:
+            old_b_idx = self.sel_pdf.iloc[0, 0]
+        except:
+            return False
+        old_b_id = self.sel_pdf.iloc[0, 1]
+        old_b_name = self.sel_pdf.iloc[0, 2]
+        try:
+            old_a_idx = self.sel_pdf.loc[0, 'a_idx']
+        except:
+            return False
+        old_a_df = self.adf[self.adf.index == old_a_idx]
+        old_a_id = old_a_df.iloc[0, 0]
+        old_a_name = old_a_df.iloc[0, 1]
+        m_text = f'<FONT COLOR="#000000">Zaznaczony otwór B:<br><FONT COLOR="#ff0000"><B>({old_b_id}) {old_b_name}</B></FONT><BR>jest już połączony z innym otworem A:<BR><FONT COLOR="#0000ff"><B>({old_a_id}) {old_a_name}</B></FONT>.<BR>Czy chcesz, aby otwór A:<BR><FONT COLOR="#0000ff"><B>({old_a_id}) {old_a_name}</B></FONT><BR>utracił połączenie z otworem B i został przeniesiony do kategorii "Wstrzymane"?</FONT>'
+        reply = QMessageBox.question(None, "WellMatch", m_text, QMessageBox.Yes, QMessageBox.No)
+        if reply == QMessageBox.No:
+            return False
+        # Kasowanie starego połączenia w otworze B:
+        self.bdf.iloc[old_b_idx,-1] = np.nan
+        self.adf.iloc[old_a_idx, -1] = np.nan
+        self.adf.loc[old_a_idx,'cat'] = 'w'
+        return True
+
+    def make_link(self):
+        """Połączenie otworu A z B."""
         pdf = self.sel_pdf.copy()
-        b_idx = int(pdf['b_idx'])
+        try:
+            b_idx = int(pdf.iloc[0, 0])
+        except:
+            return False
         self.bdf.iloc[b_idx,-1] = self.a_idx
         cols = pdf.columns.tolist()
         pdf = pdf.drop(np.r_[cols[1:13], cols[20:]], 1)
