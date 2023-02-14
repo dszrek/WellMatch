@@ -438,6 +438,7 @@ class CustomButton(QToolButton):
         self.setStyleSheet("""
                             QToolButton {
                                 border: none;
+                                outline: none;
                             }
                             QToolTip {
                                 border: 1px solid rgb(100, 100, 100);
@@ -500,6 +501,7 @@ class MultiStateButton(QToolButton):
         self.setStyleSheet("""
                             QToolButton {
                                 border: none;
+                                outline: none;
                             }
                             QToolTip {
                                 border: 1px solid rgb(100, 100, 100);
