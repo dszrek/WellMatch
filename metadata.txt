@@ -5,7 +5,7 @@
 [general]
 name=WellMatch
 qgisMinimumVersion=3.0
-version=0.10.0
+version=0.10.1
 author=Dominik Szrek / PIG-PIB
 email=dszr@pgi.gov.pl
 description=Wyszukiwanie tożsamych otworów geologicznych w dwóch odrębnych bazach danych.
@@ -24,7 +24,20 @@ repository=https://github.com/dszrek/WellMatch.git
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=[0.10.0] - 2023-01-03
+changelog=[0.10.1] - 2023-02-15
+
+  * Dodano:
+ - Monity ostrzegające o zerwaniu połączeń między otworami A i B, pojawiające się po naciśnięciu przycisków sterujących kategoriami lub połączeniami otworów.
+
+  * Zmieniono:
+ - Gdy na liście otworów B zaznaczony jest otwór aktualnie połączony z otworem A, przycisk "USTAL POŁĄCZENIE" zmienia się na "SKASUJ POŁĄCZENIE", a jego naciśnięcie powoduje zerwanie połączenia między otworami. Jeżeli otwór A nie będzie miał połączenia z otworem B, a znajduje się w kategorii "Analizowane" lub "Połączone", to zostanie automatycznie przeniesiony do kategorii "Wstrzymane".
+ - Otwory A przenoszone do kategorii "Odrzucone" i "Wstrzymane" tracą połączenia z otworami B.
+
+  * Poprawiono:
+ - Zlikwidowano błąd pojawiający się w sytuacji, gdy otwór A ma połączenie z otworem B, a wybranie innego otworu z listy B i kliknięcie na przycisk POŁĄCZ powoduje połączenie otworu A z zaznaczonym otworem B BEZ ZERWANIA POŁĄCZENIA z otworem B, który już wcześniej był połączony. W konsekwencji, otwór A był nieprawidłowo połączony z dwoma otworami B. W projektach, w których występują tego typu błędy należy zaznaczyć nieprawidłowy otwór B i nacisnąć przycisk "SKASUJ POŁĄCZENIE".
+ - Po naciśnięciu przycisku "EKSPORTUJ", uruchamiany jest weryfikator, który sprawdza czy otwory A nie mają wielokrotnych połączeń z otworami B. Po wykryciu duplikatów, proces eksportu zostaje przerwany, pojawia się monit informujący o występowaniu duplikatów, a po jego zamknięciu wtyczka automatycznie przechodzi do otworu A, w którym występuje błąd. Po usunięciu nieprawidłowego połączenia można wznowić procedurę eksportu.
+
+  [0.10.0] - 2023-01-03
 
   * Dodano:
  - Dodatkowy tryb wyświetlania otworów B - wyświetlane są otwory z przestrzennego zakresu widoku mapy.
