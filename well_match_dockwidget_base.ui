@@ -601,7 +601,8 @@ font-size: 12px;
                 <string notr="true">QPushButton {
 padding: 6px;
 font-size: 12px;
-font-weight: normal
+font-weight: normal;
+outline: none;
 }</string>
                </property>
                <property name="text">
@@ -636,7 +637,8 @@ font-weight: normal
                 <string notr="true">QPushButton {
 padding: 6px;
 font-size: 12px;
-font-weight: normal
+font-weight: normal;
+outline: none;
 }</string>
                </property>
                <property name="text">
@@ -671,7 +673,8 @@ font-weight: normal
                 <string notr="true">QPushButton {
 padding: 6px;
 font-size: 12px;
-font-weight: normal
+font-weight: normal;
+outline: none;
 }</string>
                </property>
                <property name="text">
@@ -706,7 +709,8 @@ font-weight: normal
                 <string notr="true">QPushButton {
 padding: 6px;
 font-size: 12px;
-font-weight: normal
+font-weight: normal;
+outline: none;
 }</string>
                </property>
                <property name="text">
@@ -741,7 +745,8 @@ font-weight: normal
                 <string notr="true">QPushButton {
 padding: 6px;
 font-size: 12px;
-font-weight: normal
+font-weight: normal;
+outline: none;
 }</string>
                </property>
                <property name="text">
@@ -863,6 +868,7 @@ QTableView {
                 <string notr="true">QPushButton {
 padding-left: 6px;
 padding-right: 6px;
+outline: none;
 }</string>
                </property>
                <property name="text">
@@ -888,6 +894,7 @@ padding-right: 6px;
                 <string notr="true">QPushButton {
 padding-left: 6px;
 padding-right: 6px;
+outline: none;
 }</string>
                </property>
                <property name="text">
@@ -913,6 +920,7 @@ padding-right: 6px;
                 <string notr="true">QPushButton {
 padding-left: 6px;
 padding-right: 6px;
+outline: none;
 }</string>
                </property>
                <property name="text">
@@ -938,6 +946,7 @@ padding-right: 6px;
                 <string notr="true">QPushButton {
 padding-left: 6px;
 padding-right: 6px;
+outline: none;
 }</string>
                </property>
                <property name="text">
@@ -957,6 +966,7 @@ padding-right: 6px;
                 <string notr="true">QPushButton {
 padding-left: 6px;
 padding-right: 6px;
+outline: none;
 }</string>
                </property>
                <property name="text">
@@ -2575,6 +2585,7 @@ color: rgb(0,0,255);</string>
                    <string notr="true">QPushButton {
 padding-left: 6px;
 padding-right: 6px;
+outline: none;
 }</string>
                   </property>
                   <property name="text">
@@ -2606,6 +2617,7 @@ padding-right: 6px;
                    <string notr="true">QPushButton {
 padding-left: 6px;
 padding-right: 6px;
+outline: none;
 }</string>
                   </property>
                   <property name="text">
